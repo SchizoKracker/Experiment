@@ -26,6 +26,7 @@ ARCH_AMP = [0.000, 0.004, 0.009, 0.011, 0.009, 0.004]
 
 
 LID_EDGES = {}
+CARUNCLE = {}
 LID_ARCS = {}                          # sx -> (upper margin pts, lower margin pts, eye centre), filled by features()
 # eyebrow hair arch measured on the front view of 4.webp (lat, zn)
 BROW_HAIR_LAT = [0.060, 0.080, 0.110, 0.157, 0.200, 0.240]
@@ -77,7 +78,8 @@ def ridge(pts, amps, r):
 def eye_center(p, J, sx, face_front, ez, k, P_):
     """Eyeball centre: the cornea sits just under the skin line so the open lids show the whole iris."""
     lat = LMK["pupil_lat"]
-    return P_(sx * lat, face_front(LMK["pupil_zn"], lat) - 0.006 - EYE_R_HU * p["eye"], LMK["pupil_zn"])
+    # seated ~1 mm deeper than the skin line so the lids overlap the eyeball instead of framing it
+    return P_(sx * lat, face_front(LMK["pupil_zn"], lat) - 0.010 - EYE_R_HU * p["eye"], LMK["pupil_zn"])
 
 
 def _n(v):
@@ -151,6 +153,10 @@ def features(s, p, J, P_, face_front, lm, hh):
         mr = 0.0055 * hh                                   # lid margin radius (~1.3 mm)
         up_m, lo_m = arc(mr * 0.7, mr * 0.6, er + 0.0035 * hh)
         LID_ARCS[sx] = (np.array(up_m), np.array(lo_m), c.copy())
+        # lacrimal caruncle: small pink mound filling the medial corner of the opening
+        cpos = c + v3(-sx * (lat - LMK["canthus_in_lat"] - 0.009) * hh, -er * 0.62, 0.002 * hh)
+        CARUNCLE[sx] = cpos
+        s.union(ellipsoid(cpos, [0.0075 * hh, 0.006 * hh, 0.0065 * hh]), k=0.004 * hh, tag="lid", name="caruncle")
         # the opening edge itself (just inside the lid), on the eyeball surface: lash roots start here
         up_e, lo_e = arc(0.0012 * hh, 0.0012 * hh, er)
         LID_EDGES[sx] = (np.array(up_e), np.array(lo_e))

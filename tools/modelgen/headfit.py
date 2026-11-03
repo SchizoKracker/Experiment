@@ -12,7 +12,7 @@ import numpy as np
 
 LANDMARKS = dict(
     pupil_lat=0.140, pupil_zn=0.52, cornea_fwd=0.339,
-    canthus_in_lat=0.066, canthus_out_lat=0.216, eye_open_h=0.062, eye_open_up=0.029, eye_open_lo=0.033,
+    canthus_in_lat=0.072, canthus_out_lat=0.216, eye_open_h=0.049, eye_open_up=0.022, eye_open_lo=0.027,
     brow_inner_zn=0.475, brow_arch_zn=0.42, brow_bone_zn=0.48,
     nose_tip_zn=0.68, alae_lat=0.074, alae_zn=0.697, alae_fwd=0.357, subnasale_zn=0.72,
     bridge_lat=0.034,

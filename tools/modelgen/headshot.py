@@ -95,6 +95,10 @@ for sx, (up, lo_, c) in face.LID_ARCS.items():
     cc = mix(cc, (0.1, 0.07, 0.06), 0.9 * liner)
     cc = mix(cc, (0.35, 0.25, 0.23), 0.35 * np.exp(-(dl / 0.0022) ** 2) * outer)
     cols[m] = cc
+# caruncle + inner lid rim: moist pink
+for sx, cp in face.CARUNCLE.items():
+    dcar = np.linalg.norm(v - cp, axis=1)
+    cols = mix(cols, (0.78, 0.45, 0.45), 0.85 * np.exp(-(dcar / (0.0075 * hh)) ** 2))
 # brows: skin under the hair a touch darker
 bc = np.interp(au, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN)
 cols = mix(cols, (0.55, 0.4, 0.33), 0.35 * np.exp(-((zn - bc) / 0.012) ** 2) * smooth(0.05, 0.07, au) * smooth(0.25, 0.23, au) * (fw > 0.1))
