@@ -56,7 +56,7 @@ class Painter:
 def apply(s: Shape, p, J):
     H = p["height"]
     fem, mus = p["fem"], p["muscle"]
-    md = (0.5 + 0.9 * mus) * (1 - 0.45 * fem)
+    md = (0.5 + 0.9 * mus) * (1 - 0.3 * fem)
     P = Painter(s, H)
     h = H
     _torso_front(P, p, h, md, fem)
@@ -156,7 +156,7 @@ def _pelvis(P, p, H, md, fem):
         P.line(v3(sx * 0.085 * H, 0, 0.547 * H), FWD + X * 0.5, v3(sx * 0.02 * H, 0, 0.475 * H), FWD, 0.008 * H, -0.0022 * H * md)
         # iliac crest ridge and gluteus medius / TFL mass on the upper outer hip
         P.line(v3(sx * 0.09 * H, 0, 0.553 * H), X + BK * 0.5, v3(sx * 0.08 * H, 0, 0.548 * H), X + FWD * 0.6, 0.007 * H, 0.0014 * H)
-        P.bump(v3(sx * 0.097 * H, 0, 0.515 * H), X, UP, 0.03 * H, 0.016 * H, 0.0032 * H)
+        P.bump(v3(sx * 0.097 * H, 0, 0.515 * H), X, UP, 0.03 * H, 0.016 * H, 0.0032 * H * (1 - 0.7 * fem))
         # glutes: rounded cheeks, gluteal fold
         P.bump(v3(sx * 0.052 * H, 0, 0.49 * H), BK, UP, 0.048 * H, 0.044 * H, 0.0175 * H * gl, 0.04 * H)
         P.bump(v3(sx * 0.078 * H, 0, 0.515 * H), BK * 0.6 + X, UP, 0.03 * H, 0.026 * H, 0.0055 * H * gl)

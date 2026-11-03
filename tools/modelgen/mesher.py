@@ -48,7 +48,7 @@ def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03
     d_c = np.empty(len(bi), F)
     for s in range(0, len(bi), 200000):
         d_c[s:s + 200000] = shape.eval(centres[s:s + 200000])
-    active = bi[np.abs(d_c) < H * 2.2]
+    active = bi[np.abs(d_c) < H * 3.4]
     if len(active) == 0:
         return np.zeros((0, 3), F), np.zeros((0, 3), np.int64)
 
