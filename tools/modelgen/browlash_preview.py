@@ -9,6 +9,9 @@ import hair as hr
 from sdf import F
 import bpy
 import blendutil as bu
+import os
+OUT_DIR = os.environ.get("MODELGEN_OUT", "/tmp/claude-0/prev")
+os.makedirs(OUT_DIR, exist_ok=True)
 from hair_preview import hair_material, add_strands
 
 out = sys.argv[1]
@@ -21,7 +24,7 @@ J = hu.build_skeleton(p)
 s = body.build_body(p, J)                      # also fills face.LID_ARCS
 hf = hr.HeadFrame(J)
 hh = hf.hh
-C = np.load(f"/tmp/claude-0/prev/hs_cache_{preset}.npz")
+C = np.load(f"{OUT_DIR}/hs_cache_{preset}.npz")
 v, f, ev, ef = C["v"], C["f"], C["ev"], C["ef"]
 # keep only the upper face for speed
 u, fw, zn = hf.local(v)
@@ -65,7 +68,7 @@ if "--eye" in sys.argv:
     VIEWS = (("efront", (0.0, -0.16, 0.0)), ("e34", (0.11, -0.12, 0.01)), ("eside", (0.15, -0.035, 0.0)))
 for name, d in VIEWS:
     cam.location = tuple(ec + np.array(d)); bu.look_at(cam, tuple(ec))
-    pth = f"/tmp/claude-0/prev/_bl_{name}.png"; bu.render(pth); ims.append(Image.open(pth).convert("RGB"))
+    pth = f"{OUT_DIR}/_bl_{name}.png"; bu.render(pth); ims.append(Image.open(pth).convert("RGB"))
 sheet = Image.new("RGB", (W, H * len(ims)))
 for i, im in enumerate(ims):
     sheet.paste(im, (0, H * i))

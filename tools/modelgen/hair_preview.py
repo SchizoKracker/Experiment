@@ -6,6 +6,9 @@ import races, humanoid as hu, body, mesher, anatomy, grooms, hair as hr
 from sdf import Shape, F
 import bpy
 import blendutil as bu
+import os
+OUT_DIR = os.environ.get("MODELGEN_OUT", "/tmp/claude-0/prev")
+os.makedirs(OUT_DIR, exist_ok=True)
 
 SKIN = {"m": (0.62, 0.42, 0.33), "f": (0.7, 0.5, 0.4)}
 HAIR = {"m": dict(melanin=0.85, red=0.35, rough=0.32), "f": dict(melanin=0.55, red=0.9, rough=0.3)}
@@ -102,7 +105,7 @@ def main():
     for i, vv in enumerate(views):
         tgt = hc if i < 2 or sex == "m" else hc + np.array([0, 0.03, -0.14])
         cam.location = tuple(tgt + np.array(vv)); bu.look_at(cam, tuple(tgt))
-        pth = f"/tmp/claude-0/prev/_hair_{sex}_{i}.png"; bu.render(pth); paths.append(pth)
+        pth = f"{OUT_DIR}/_hair_{sex}_{i}.png"; bu.render(pth); paths.append(pth)
     ims = [Image.open(x).convert("RGB") for x in paths]
     sheet = Image.new("RGB", (900 * len(ims), 900))
     for i, im in enumerate(ims):

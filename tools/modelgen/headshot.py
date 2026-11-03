@@ -9,6 +9,9 @@ from headfit import LANDMARKS as LMK
 from sdf import Shape, F
 import bpy
 import blendutil as bu
+import os
+OUT_DIR = os.environ.get("MODELGEN_OUT", "/tmp/claude-0/prev")
+os.makedirs(OUT_DIR, exist_ok=True)
 from hair_preview import hair_material, add_strands
 
 out = sys.argv[1]
@@ -24,7 +27,7 @@ hh = hf.hh
 lo = np.array([-0.2, hf.yc - 0.2, hf.top - 1.75 * hh], F)
 hi = np.array([0.2, hf.yc + 0.2, hf.top + 0.02], F)
 import os
-CACHE = f"/tmp/claude-0/prev/hs_cache_{preset}.npz"
+CACHE = f"{OUT_DIR}/hs_cache_{preset}.npz"
 use_cache = os.path.exists(CACHE) and "--rebuild" not in sys.argv
 if use_cache:
     C = np.load(CACHE)
@@ -313,7 +316,7 @@ views = [("34", (0.38, -0.82, 0.04)), ("front", (0.0, -0.9, 0.03)), ("profile", 
 ims = []
 for name, d in views:
     cam.location = tuple(hc + np.array(d)); bu.look_at(cam, tuple(hc + np.array([0, 0, 0.005])))
-    pth = f"/tmp/claude-0/prev/_hs_{name}.png"; bu.render(pth); ims.append(Image.open(pth).convert("RGB"))
+    pth = f"{OUT_DIR}/_hs_{name}.png"; bu.render(pth); ims.append(Image.open(pth).convert("RGB"))
     ims[-1].save(out.replace(".png", f"_{name}.png"))
 sheet = Image.new("RGB", (W * len(ims), H))
 for i, im in enumerate(ims):
