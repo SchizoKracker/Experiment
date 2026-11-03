@@ -23,8 +23,8 @@ eo = bu.mesh_object("e", ev, ef); eo.data.materials.append(bu.material("eye", (0
 bu.setup_render((600, 1000), 12)
 bpy.context.scene.world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.02, 0.02, 0.02, 1)
 H = p["height"]
-bu.add_light("AREA", (-1.2, -3.0, H * 1.6), 70 * H, (1, 1, 1), 2.0, (0, 0, H * 0.6))
-bu.add_light("AREA", (2.0, -1.5, H * 0.9), 25 * H, (1, 1, 1), 2.0, (0, 0, H * 0.5))
+bu.add_light("AREA", (-2.6, -2.2, H * 2.0), 90 * H, (1, 1, 1), 1.2, (0, 0, H * 0.6))
+bu.add_light("AREA", (2.0, -1.5, H * 0.9), 12 * H, (1, 1, 1), 2.0, (0, 0, H * 0.5))
 bu.add_light("AREA", (0.3, 3, H * 1.4), 45 * H, (1, 1, 1), 2.0, (0, 0, H * 0.7))
 cam = bu.camera((0, -6 * H, H * 0.5), (0, 0, H * 0.5), ortho=H * 1.02)
 bu.render("/tmp/claude-0/prev/_cmp_front.png")
@@ -64,4 +64,10 @@ x = 0
 for im in (ru, mu, upper(side), upper(back)):
     up_sheet.paste(im, (x, 0)); x += im.width
 up_sheet.save(out.replace(".png", "_upper.png"))
+def lower(im): return im.crop((0, int(im.height * 0.42), im.width, int(im.height * 0.85)))
+lo_sheet = Image.new("RGB", (lower(ref).width + lower(mine).width + lower(side).width + lower(back).width, lower(ref).height))
+x = 0
+for im in (lower(ref), lower(mine), lower(side), lower(back)):
+    lo_sheet.paste(im, (x, 0)); x += im.width
+lo_sheet.save(out.replace(".png", "_lower.png"))
 print("saved", out)

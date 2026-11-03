@@ -105,8 +105,8 @@ def build_skeleton(p) -> dict:
         J[f"hand_end.{side}"] = wr + d_fo * hand_len
         # legs
         hj = v3(sx * hw, 0.0, hip_z)
-        kn = v3(sx * hw * 0.92, -0.008 * H, hip_z - leg_len * 0.48)
-        an = v3(sx * hw * 0.88, 0.012 * H, 0.045 * H)
+        kn = v3(sx * (hw + 0.016 * H), -0.008 * H, hip_z - leg_len * 0.48)
+        an = v3(sx * (hw + 0.022 * H), 0.012 * H, 0.045 * H)
         J[f"thigh.{side}"] = hj
         J[f"shin.{side}"] = kn
         J[f"foot.{side}"] = an

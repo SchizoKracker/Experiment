@@ -8,7 +8,7 @@ from humanoid import P
 
 # body-shape parameters per race (masculine form); feminine form derives from these
 RACE_BODY = {
-    "human":      dict(height=1.78),
+    "human":      dict(height=1.78, muscle=0.6),
     "elf":        dict(height=1.80, muscle=0.35, fat=0.15, limb_thick=0.9, shoulder=0.94, arm=1.03, leg=1.05, neck=1.08,
                        jaw=0.88, chin=0.95, brow=0.7, cheek=1.15, nose_len=1.02, nose_w=0.85, eye=1.06, eye_tilt=0.6,
                        face_long=1.04, ears="long", ear_size=1.0),

@@ -9,7 +9,7 @@ def runs_table(mask):
     Hpx = bot - top
     cx = np.where(mask[top + int(0.04 * Hpx)])[0].mean()
     tab = {}
-    for zf in np.arange(0.44, 0.9, 0.02):
+    for zf in np.arange(float(sys.argv[3]) if len(sys.argv) > 3 else 0.44, float(sys.argv[4]) if len(sys.argv) > 4 else 0.9, 0.02):
         y = int(top + (1 - zf) * Hpx)
         r = mask[y].astype(int)
         d = np.diff(np.concatenate([[0], r, [0]]))
