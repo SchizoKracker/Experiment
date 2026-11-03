@@ -146,7 +146,6 @@ def _pelvis(P, p, H, md, fem):
         X = v3(sx, 0, 0)
         # inguinal V-lines and the hip crease
         P.line(v3(sx * 0.085 * H, 0, 0.547 * H), FWD + X * 0.5, v3(sx * 0.02 * H, 0, 0.475 * H), FWD, 0.008 * H, -0.0022 * H * md)
-        P.line(v3(sx * 0.09 * H, 0, 0.49 * H), FWD + X * 0.4, v3(sx * 0.03 * H, 0, 0.462 * H), FWD, 0.007 * H, -0.0016 * H)
         # iliac crest ridge and gluteus medius / TFL mass on the upper outer hip
         P.line(v3(sx * 0.09 * H, 0, 0.553 * H), X + BK * 0.5, v3(sx * 0.08 * H, 0, 0.548 * H), X + FWD * 0.6, 0.007 * H, 0.0014 * H)
         P.bump(v3(sx * 0.097 * H, 0, 0.515 * H), X, UP, 0.03 * H, 0.016 * H, 0.0032 * H)
@@ -239,16 +238,22 @@ def _leg(P, J, side, sx, H, md):
     def S(t):
         return kn + sk * (t * L2)
 
-    # ---- quadriceps
-    P.line(T(0.12), FWD, T(0.86), FWD, 0.02 * H, 0.0034 * H * md)                                  # rectus femoris
-    P.bump(T(0.5), _n(X + FWD * 0.6), ax, 0.09 * H, 0.022 * H, 0.0042 * H * md)                     # vastus lateralis
-    P.bump(T(0.86), _n(-X + FWD * 0.8), ax, 0.035 * H, 0.016 * H, 0.0045 * H * md)                  # vastus medialis
+    # pelvic landmarks the thigh muscles originate from
+    asis = v3(sx * 0.082 * H, 0, 0.548 * H)        # anterior superior iliac spine
+    pubis = v3(sx * 0.018 * H, 0, 0.472 * H)
+    # ---- hip flexors / quadriceps flowing out of the pelvis
+    P.line(asis, _n(FWD + X * 0.5), T(0.45), _n(FWD + X * 0.2), 0.016 * H, 0.0026 * H * md)          # rectus femoris origin
+    P.line(T(0.3), FWD, T(0.86), FWD, 0.02 * H, 0.0034 * H * md)                                     # rectus femoris belly
+    P.line(asis, _n(X + FWD * 0.6), T(0.3), _n(X + FWD * 0.3), 0.014 * H, 0.0028 * H * md)           # tensor fasciae latae
+    P.bump(T(0.5), _n(X + FWD * 0.6), ax, 0.09 * H, 0.022 * H, 0.0042 * H * md)                       # vastus lateralis
+    P.bump(T(0.86), _n(-X + FWD * 0.8), ax, 0.035 * H, 0.016 * H, 0.0045 * H * md)                    # vastus medialis
+    P.line(asis, _n(FWD + X * 0.2), T(0.88), _n(-X + FWD * 0.3), 0.008 * H, -0.0013 * H * md)        # sartorius groove
     P.line(T(0.25), _n(FWD + X * 0.45), T(0.85), _n(FWD + X * 0.3), 0.009 * H, -0.0012 * H * md)
     P.line(T(0.35), _n(FWD - X * 0.4), T(0.8), _n(FWD - X * 0.2), 0.009 * H, -0.001 * H * md)
-    P.line(T(0.08), _n(FWD + X * 0.8), T(0.85), _n(-X + FWD * 0.3), 0.007 * H, -0.0012 * H * md)  # sartorius
-    P.line(T(0.2), X, T(0.9), _n(X + BK * 0.2), 0.007 * H, -0.0009 * H * md)                       # IT band
-    # adductors on the inner thigh
-    P.bump(T(0.25), _n(-X + FWD * 0.3), ax, 0.06 * H, 0.02 * H, 0.0032 * H * md)
+    P.line(T(0.25), X, T(0.9), _n(X + BK * 0.2), 0.007 * H, -0.0009 * H * md)                        # IT band
+    # adductors: fan from the pubis down the inner thigh (builds the inner V)
+    P.line(pubis, _n(FWD - X * 0.6), T(0.55), _n(-X + FWD * 0.2), 0.02 * H, 0.0034 * H * md)
+    P.bump(T(0.25), _n(-X + FWD * 0.3), ax, 0.05 * H, 0.02 * H, 0.0028 * H * md)
     # hamstrings: biceps femoris (lateral), semitendinosus/membranosus (medial)
     P.line(T(0.2), _n(BK + X * 0.4), T(0.85), _n(BK + X * 0.6), 0.016 * H, 0.0022 * H * md)
     P.line(T(0.2), _n(BK - X * 0.4), T(0.85), _n(BK - X * 0.6), 0.016 * H, 0.0022 * H * md)

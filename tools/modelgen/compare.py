@@ -70,4 +70,10 @@ x = 0
 for im in (lower(ref), lower(mine), lower(side), lower(back)):
     lo_sheet.paste(im, (x, 0)); x += im.width
 lo_sheet.save(out.replace(".png", "_lower.png"))
+def pelv(im): return im.crop((int(im.width * 0.2), int(im.height * 0.38), int(im.width * 0.8), int(im.height * 0.62)))
+pr, pm, pb = pelv(ref), pelv(mine), pelv(back)
+pe = Image.new("RGB", (pr.width + pm.width + pb.width, pr.height)); x = 0
+for im in (pr, pm, pb):
+    pe.paste(im, (x, 0)); x += im.width
+pe.save(out.replace(".png", "_pelvis.png"))
 print("saved", out)
