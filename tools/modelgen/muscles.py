@@ -91,6 +91,9 @@ def _torso_front(P, p, H, md, fem):
             P.line(v3(sx * 0.078 * H, 0, 0.805 * H), FWD + X * 0.4 + UP * 0.3, v3(sx * 0.104 * H, 0, 0.752 * H), FWD + X * 0.8, 0.0055 * H, -0.0022 * H * md)
             # nipple / areola hint
             P.bump(v3(sx * 0.062 * H, 0, 0.716 * H), FWD, X, 0.006 * H, 0.006 * H, 0.0009 * H, 0.004 * H)
+        # sternoclavicular head of the clavicle and the acromion at the top of the shoulder
+        P.bump(v3(sx * 0.017 * H, 0, 0.823 * H), FWD + UP * 0.4, X, 0.007 * H, 0.006 * H, 0.0013 * H)
+        P.bump(v3(sx * 0.1 * H, 0, 0.818 * H), UP + X * 0.3, X, 0.009 * H, 0.008 * H, 0.0011 * H)
         # clavicle ridge and the infraclavicular hollow
         P.line(v3(sx * 0.014 * H, 0, 0.82 * H), FWD + UP * 0.6, v3(sx * 0.09 * H, 0, 0.812 * H), FWD + UP * 0.8, 0.0055 * H, 0.0022 * H)
         P.line(v3(sx * 0.035 * H, 0, 0.797 * H), FWD, v3(sx * 0.075 * H, 0, 0.792 * H), FWD, 0.008 * H, -0.0011 * H)
@@ -116,22 +119,97 @@ def _torso_front(P, p, H, md, fem):
     P.bump(v3(0, 0, 0.585 * H), FWD, UP, 0.0045 * H, 0.0035 * H, -0.0045 * H, 0.004 * H)
 
 
+def trapezius_field(H, md, fem):
+    """The trapezius as one continuous soft sheet (a displacement field), not separate strokes:
+    origin along the midline from the occiput (z ~0.90 H) down to T12 (~0.66 H); insertion along the
+    lateral clavicle, acromion and spine of the scapula.  Lateral extent L(z) and thickness T(z) follow
+    the muscle: thickest along the upper slope (neck -> acromion), thin over the mid back, a thin
+    lower diamond; feathered edges.  Weighted to the back of the body; over the top of the shoulders
+    it wraps to the front border of the upper trapezius."""
+    ZL = np.array([0.66, 0.70, 0.74, 0.78, 0.80, 0.815, 0.83, 0.845, 0.86, 0.88, 0.90])
+    LL = np.array([0.0, 0.025, 0.048, 0.07, 0.085, 0.095, 0.092, 0.06, 0.036, 0.03, 0.022])
+    TT = np.array([0.0, 0.0012, 0.0018, 0.0024, 0.0034, 0.0046, 0.0056, 0.005, 0.003, 0.0015, 0.0])
+    a = md * (1 - 0.2 * fem)
+    lo = np.array([-0.11 * H, -0.06 * H, 0.64 * H], np.float32)
+    hi = np.array([0.11 * H, 0.14 * H, 0.92 * H], np.float32)
+
+    def f(q, d):
+        out = np.zeros(len(q), np.float32)
+        m = np.all((q > lo) & (q < hi), axis=1)
+        if not np.any(m):
+            return out
+        x, y, z = np.abs(q[m, 0]) / H, q[m, 1] / H, q[m, 2] / H
+        L = np.interp(z, ZL, LL)
+        T = np.interp(z, ZL, TT)
+        u = np.clip(x / np.maximum(L, 1e-4), 0, 1.5)
+        prof = np.clip(1 - u ** 2.2, 0, 1) ** 1.6                    # full near the spine/neck, feathered to the edge
+        # back of the body only; the upper trapezius wraps over the top of the shoulder to its front border
+        y0 = np.interp(z, [0.78, 0.82, 0.86], [0.01, -0.004, -0.012])
+        wb = np.clip((y - y0) / 0.02 + 0.5, 0, 1)
+        wb = wb * wb * (3 - 2 * wb)
+        out[m] = -(T * a * prof * wb * H)
+        return out
+    f.lo, f.hi = lo, hi
+    return f
+
+
+def scapula_field(H, md, fem, sx):
+    """Shoulder blade under the back's soft tissue: a low plate (scapula + infraspinatus/teres) with a
+    slightly raised medial border and inferior angle, feathered into the surrounding tissue."""
+    import sdf
+    a = md * (1 - 0.25 * fem)
+    lo = np.array([min(sx * 0.02, sx * 0.13) * H, -0.02 * H, 0.66 * H], np.float32)
+    hi = np.array([max(sx * 0.02, sx * 0.13) * H, 0.14 * H, 0.83 * H], np.float32)
+    # scapula triangle in the (x, z) plane (fractions of H): superior angle, inferior angle, glenoid
+    sup, inf, gle = np.array([0.045, 0.80]), np.array([0.058, 0.70]), np.array([0.105, 0.785])
+
+    def f(q, d):
+        out = np.zeros(len(q), np.float32)
+        m = np.all((q > lo) & (q < hi), axis=1) & (q[:, 1] > -0.02 * H)
+        if not np.any(m):
+            return out
+        P2 = np.stack([q[m, 0] * sx / H, q[m, 2] / H], 1)
+        # barycentric-ish inside measure via distance to the triangle edges
+        def edge(a_, b_):
+            ab = b_ - a_
+            t = np.clip(((P2 - a_) @ ab) / (ab @ ab), 0, 1)
+            return np.linalg.norm(P2 - (a_ + t[:, None] * ab), axis=1)
+        dm = edge(sup, inf)                 # medial border
+        dl = edge(inf, gle)                 # lateral border
+        ds = edge(sup, gle)                 # spine side
+        # inside test (same side of all three edges)
+        def side(a_, b_, c_):
+            return np.sign((b_[0] - a_[0]) * (P2[:, 1] - a_[1]) - (b_[1] - a_[1]) * (P2[:, 0] - a_[0])) == \
+                   np.sign((b_[0] - a_[0]) * (c_[1] - a_[1]) - (b_[1] - a_[1]) * (c_[0] - a_[0]))
+        inside = side(sup, inf, gle) & side(inf, gle, sup) & side(gle, sup, inf)
+        dist_out = np.where(inside, 0.0, np.minimum(np.minimum(dm, dl), ds))
+        plate = np.exp(-(dist_out / 0.012) ** 2) * 0.0022
+        border = np.exp(-(dm / 0.006) ** 2) * 0.0010 + np.exp(-(np.linalg.norm(P2 - inf, axis=1) / 0.01) ** 2) * 0.0008
+        # fade in over the side of the body (a hard cut at y = 0 left a crease down the shoulder)
+        wy = np.clip((q[m, 1] / H + 0.005) / 0.02, 0, 1)
+        wy = wy * wy * (3 - 2 * wy)
+        out[m] = -((plate + border) * a * H * wy)
+        return out
+    f.lo, f.hi = lo, hi
+    return f
+
+
 def _torso_back(P, p, H, md, fem):
     BK = v3(0, 1, 0)
     UP = v3(0, 0, 1)
+    P.D.append(trapezius_field(H, md, fem))
     for sx in (-1, 1):
         X = v3(sx, 0, 0)
-        # trapezius: upper slope, mid mass, lower diamond edge
-        P.line(v3(sx * 0.026 * H, 0, 0.858 * H), BK + UP * 0.6, v3(sx * 0.095 * H, 0, 0.812 * H), BK + UP * 0.8 + X * 0.4, 0.012 * H, 0.0035 * H * md)
-        P.bump(v3(sx * 0.03 * H, 0, 0.775 * H), BK, UP, 0.035 * H, 0.022 * H, 0.003 * H * md)
-        P.line(v3(sx * 0.05 * H, 0, 0.765 * H), BK, v3(sx * 0.008 * H, 0, 0.67 * H), BK, 0.008 * H, -0.0008 * H * md)
+        P.D.append(scapula_field(H, md, fem, sx))
+        # lower trapezius border: a very soft line (the edge is mostly carried by the sheet's feathering)
+        P.line(v3(sx * 0.05 * H, 0, 0.765 * H), BK, v3(sx * 0.008 * H, 0, 0.67 * H), BK, 0.009 * H, -0.0004 * H * md)
         # spine of the scapula and the acromion
         P.line(v3(sx * 0.035 * H, 0, 0.782 * H), BK, v3(sx * 0.095 * H, 0, 0.805 * H), BK + X * 0.6 + UP * 0.5, 0.0055 * H, 0.0014 * H)
         # infraspinatus and teres major over/below the scapula
-        P.bump(v3(sx * 0.062 * H, 0, 0.752 * H), BK + X * 0.2, UP, 0.024 * H, 0.022 * H, 0.0034 * H * md)
+        P.bump(v3(sx * 0.062 * H, 0, 0.752 * H), BK + X * 0.2, UP, 0.024 * H, 0.022 * H, 0.0016 * H * md)
         P.bump(v3(sx * 0.088 * H, 0, 0.728 * H), BK + X * 0.6, X + UP * 0.6, 0.02 * H, 0.012 * H, 0.0032 * H * md)
         # medial scapular border (soft crease)
-        P.line(v3(sx * 0.03 * H, 0, 0.775 * H), BK, v3(sx * 0.045 * H, 0, 0.712 * H), BK, 0.009 * H, -0.0011 * H * md)
+        P.line(v3(sx * 0.03 * H, 0, 0.775 * H), BK, v3(sx * 0.045 * H, 0, 0.712 * H), BK, 0.009 * H, -0.0006 * H * md)
         # latissimus dorsi: wide sweep from the armpit down toward the lumbar fascia (the back's V)
         P.bump(v3(sx * 0.085 * H, 0, 0.69 * H), BK * 0.7 + X, UP, 0.06 * H, 0.022 * H, 0.0058 * H * md)
         P.line(v3(sx * 0.095 * H, 0, 0.705 * H), BK * 0.6 + X, v3(sx * 0.06 * H, 0, 0.6 * H), BK + X * 0.4, 0.007 * H, -0.0009 * H * md)
@@ -142,7 +220,7 @@ def _torso_back(P, p, H, md, fem):
     # spinal groove
     P.line(v3(0, 0, 0.8 * H), BK, v3(0, 0, 0.55 * H), BK, 0.0085 * H, -0.0016 * H)
     # C7 vertebra prominence
-    P.bump(v3(0, 0, 0.835 * H), BK + UP * 0.3, UP, 0.006 * H, 0.006 * H, 0.0012 * H)
+    P.bump(v3(0, 0, 0.835 * H), BK + UP * 0.3, UP, 0.006 * H, 0.006 * H, 0.0006 * H)
 
 
 def _pelvis(P, p, H, md, fem):

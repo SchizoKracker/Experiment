@@ -55,15 +55,48 @@ def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03
     # ---- 2. dense block evaluation ------------------------------------
     B1 = block + 1
     loc = np.stack(np.meshgrid(np.arange(B1), np.arange(B1), np.arange(B1), indexing="ij"), -1).reshape(-1, 3)
-    vals = np.empty((len(active), B1, B1, B1), F)
     batch = max(1, 400000 // len(loc))
-    for s in range(0, len(active), batch):
-        blk = active[s:s + batch]
-        gidx = (blk[:, None, :] * block + loc[None, :, :]).reshape(-1, 3)
-        pts = (lo + gidx * h).astype(F)
-        blo = lo + blk.min(axis=0) * H
-        bhi = lo + (blk.max(axis=0) + 1) * H
-        vals[s:s + batch] = shape.eval(pts, blo, bhi).reshape(len(blk), B1, B1, B1)
+    def _eval_blocks(blks):
+        out = np.empty((len(blks), B1, B1, B1), F)
+        for s in range(0, len(blks), batch):
+            blk = blks[s:s + batch]
+            gidx = (blk[:, None, :] * block + loc[None, :, :]).reshape(-1, 3)
+            pts = (lo + gidx * h).astype(F)
+            blo = lo + blk.min(axis=0) * H
+            bhi = lo + (blk.max(axis=0) + 1) * H
+            out[s:s + batch] = shape.eval(pts, blo, bhi).reshape(len(blk), B1, B1, B1)
+        return out
+    vals = _eval_blocks(active)
+
+    # ---- 2b. hole repair: a block whose face is crossed by the surface needs its neighbour across that
+    # face too.  The coarse test can miss such a neighbour where displacements make the field steep;
+    # add missing neighbours until none are left (so the mesh is closed wherever the surface goes).
+    # all 26 neighbours: an edge lying along a block edge/corner takes its quad's cells from diagonal blocks
+    faces = []
+    for ox in (-1, 0, 1):
+        for oy in (-1, 0, 1):
+            for oz in (-1, 0, 1):
+                if ox == oy == oz == 0:
+                    continue
+                sl = tuple(slice(None) if o == 0 else (0 if o < 0 else -1) for o in (ox, oy, oz))
+                faces.append((sl, (ox, oy, oz)))
+    for _ in range(8):
+        have = set(map(tuple, active))
+        need = []
+        for sl, off in faces:
+            fv = vals[(slice(None),) + sl].reshape(len(active), -1)
+            crossed = (fv < 0).any(1) & (fv >= 0).any(1)
+            nb = active[crossed] + np.array(off)
+            ok = np.all((nb >= 0) & (nb < nblk), axis=1)
+            for t in map(tuple, nb[ok]):
+                if t not in have:
+                    have.add(t)
+                    need.append(t)
+        if not need:
+            break
+        need = np.array(need, np.int64)
+        active = np.concatenate([active, need])
+        vals = np.concatenate([vals, _eval_blocks(need)])
 
     # ---- 3a. cells with a sign change -> vertices ------------------------
     inside = vals < 0
@@ -100,6 +133,40 @@ def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03
         return pos, ok
 
     # ---- 3b. sign-changing edges -> quads --------------------------------
+    # pass 1: every cell a quad needs must have a vertex.  Adjacent blocks evaluate shared lattice points
+    # with different culling bounds, so near-zero values can differ in sign between them; a cell a
+    # crossing needs may then have no vertex.  Create those at the cell centre (projected below) instead
+    # of dropping the quad (which left holes).
+    flips = []
+    need = []
+    for axis in range(3):
+        sl0 = [slice(0, block)] * 3
+        sl1 = [slice(0, block)] * 3
+        sl1[axis] = slice(1, block + 1)
+        v0 = vals[(slice(None),) + tuple(sl0)]
+        v1 = vals[(slice(None),) + tuple(sl1)]
+        flip = (v0 < 0) != (v1 < 0)
+        b2, i2, j2, k2 = np.nonzero(flip)
+        g = active[b2] * block + np.stack([i2, j2, k2], -1)
+        flips.append((g, v0[b2, i2, j2, k2] < 0))
+        o1, o2 = [(1, 2), (2, 0), (0, 1)][axis]
+        for da, db in [(-1, -1), (0, -1), (0, 0), (-1, 0)]:
+            c = g.copy()
+            c[:, o1] += da
+            c[:, o2] += db
+            need.append(c)
+    need = np.concatenate(need) if need else np.zeros((0, 3), np.int64)
+    nk = need[:, 0] + NX * (need[:, 1] + NY * need[:, 2])
+    miss = ~np.isin(nk, keys)
+    if np.any(miss):
+        mk, mi = np.unique(nk[miss], return_index=True)
+        mc = need[miss][mi]
+        mv = lo + (mc + 0.5) * h
+        allk = np.concatenate([keys, mk])
+        allv = np.concatenate([verts, mv])
+        order = np.argsort(allk)
+        keys, verts = allk[order], allv[order]
+
     quads = []
     for axis in range(3):
         sl0 = [slice(0, block)] * 3
@@ -133,11 +200,49 @@ def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03
     tri = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
     tri = tri[(tri[:, 0] != tri[:, 1]) & (tri[:, 1] != tri[:, 2]) & (tri[:, 0] != tri[:, 2])]
 
+    tri = _fill_small_holes(tri, verts, lo + h, lo + (nblk * block - 1) * h)
+
     # ---- 4. projection onto the zero set ---------------------------------
     verts = project(shape, verts.astype(F), project_steps, h)
     if verbose:
         print(f"  mesh: {len(active)} blocks, {len(verts)} verts, {len(tri)} tris, {time.time() - t0:.1f}s")
     return verts, tri
+
+
+def _fill_small_holes(tri, verts, inner_lo, inner_hi, max_len=12):
+    """Close small boundary loops (not at the meshing box edge): fan-triangulate each, oriented to match
+    the surrounding faces.  Catches the rare cell where adjacent blocks disagreed about the surface."""
+    if len(tri) == 0:
+        return tri
+    he = np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]])
+    key = np.minimum(he[:, 0], he[:, 1]) * (len(verts) + 1) + np.maximum(he[:, 0], he[:, 1])
+    _, inv, cnt = np.unique(key, return_inverse=True, return_counts=True)
+    bnd = he[cnt[inv] == 1]
+    if len(bnd) == 0:
+        return tri
+    nxt = {}
+    for a, b in bnd:
+        nxt.setdefault(int(b), []).append(int(a))       # walk boundary half-edges reversed -> hole orientation
+    used = set()
+    new = []
+    for start in list(nxt):
+        if start in used or len(nxt[start]) != 1:
+            continue
+        loop, cur = [start], nxt[start][0]
+        while cur != start and len(loop) <= max_len and cur in nxt and len(nxt[cur]) == 1:
+            loop.append(cur)
+            cur = nxt[cur][0]
+        if cur != start or len(loop) < 3 or len(loop) > max_len:
+            continue
+        P = verts[loop]
+        if np.any(P < inner_lo) or np.any(P > inner_hi):
+            continue
+        used.update(loop)
+        for i in range(1, len(loop) - 1):
+            new.append((loop[0], loop[i], loop[i + 1]))
+    if new:
+        tri = np.concatenate([tri, np.array(new, tri.dtype)])
+    return tri
 
 
 def gradient(shape: Shape, p: np.ndarray, eps: float = 5e-4):

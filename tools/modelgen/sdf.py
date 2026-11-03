@@ -74,8 +74,11 @@ class Prim:
     tag_eps: float = 1e9     # only claim vertices within this distance of the primitive
     side: str = ""           # "", "L" or "R": left/right parts blend with the centre, never each other
 
-    def touches(self, lo, hi) -> bool:
-        pad = self.k + 1e-4
+    def touches(self, lo, hi, pad_extra=0.0) -> bool:
+        # a primitive must also be kept wherever a LATER primitive can smooth-blend with it, so the culling
+        # box is padded by the largest blend radius in the shape (pad_extra), not only by its own k:
+        # culling it inside another primitive's blend zone left creases at bounding-box edges
+        pad = max(self.k, pad_extra) + 1e-4
         return bool(np.all(self.lo - pad <= hi) and np.all(self.hi + pad >= lo))
 
 
@@ -296,12 +299,14 @@ class Shape:
             tag_d = np.full(len(p), 10.0, F)
             tags = np.full(len(p), -1, np.int32)
 
+        kmax = max((pr.k for pr in self.prims), default=0.0)
+
         def fold(d, side):
             nonlocal tag_d, tags
             for idx, pr in enumerate(self.prims):
                 if pr.side != side:
                     continue
-                if pr.op != "inter" and not pr.touches(lo, hi):
+                if pr.op != "inter" and not pr.touches(lo, hi, kmax):
                     continue
                 v = pr.fn(p)
                 if pr.op == "union":

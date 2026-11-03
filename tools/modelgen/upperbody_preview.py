@@ -19,8 +19,8 @@ s = body.build_body(p, J)
 hf = hr.HeadFrame(J)
 hh = hf.hh
 H = p["height"]
-lo = np.array([-0.32, hf.yc - 0.25, hf.top - 3.6 * hh], F)
-hi = np.array([0.32, hf.yc + 0.25, hf.top + 0.02], F)
+lo = np.array([-0.42, hf.yc - 0.25, hf.top - 3.9 * hh], F)
+hi = np.array([0.42, hf.yc + 0.25, hf.top + 0.02], F)
 v, f = mesher.mesh_shape(s, h=0.0022, clip=(lo, hi), verbose=False)
 ev, ef = mesher.mesh_shape(anatomy.eye_shape(p, J), h=0.0008, verbose=False)
 print("meshed", round(time.time() - t0, 1), len(f))
