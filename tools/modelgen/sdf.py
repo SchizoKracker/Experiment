@@ -439,3 +439,47 @@ def loft(a, b, w_out, w_in, front, back, outer_dir=(1, 0, 0), front_dir=(0, -1, 
     lo = np.minimum(a_e, b_e) - rmax
     hi = np.maximum(a_e, b_e) + rmax
     return f, lo.astype(F), hi.astype(F)
+
+
+# --------------------------------------------------------------------------
+# sculpt brushes: smooth displacement strokes (clay buildup / crease)
+# --------------------------------------------------------------------------
+def brush(center, radii, amp, rot=None):
+    """Gaussian clay stroke.  amp > 0 builds up (moves surface outward), < 0 carves a crease."""
+    c = np.asarray(center, F)
+    r = np.asarray(radii, F)
+    R = rot
+    lim = float(r.max()) * 3.2
+
+    def f(p, d):
+        q = p - c
+        far = np.abs(q).max(axis=1) > lim
+        if R is not None:
+            q = q @ R.T
+        e = np.exp(-((q / r) ** 2).sum(axis=1))
+        e[far] = 0.0
+        return (-amp * e).astype(F)
+    return f
+
+
+def stroke(a, b, radius, amp, depth_r=None):
+    """Brush dragged along a segment (crease lines, tendons, muscle borders)."""
+    a = np.asarray(a, F)
+    b = np.asarray(b, F)
+    ab = b - a
+    l2 = float(np.dot(ab, ab))
+    dr = radius * 2.5 if depth_r is None else depth_r
+    lim_lo = np.minimum(a, b) - radius * 3.2
+    lim_hi = np.maximum(a, b) + radius * 3.2
+
+    def f(p, d):
+        out = np.zeros(len(p), F)
+        m = np.all((p > lim_lo) & (p < lim_hi), axis=1)
+        if not np.any(m):
+            return out
+        q = p[m]
+        t = np.clip(((q - a) @ ab) / l2, 0, 1)
+        dist = np.linalg.norm(q - (a + np.outer(t, ab)), axis=1)
+        out[m] = -amp * np.exp(-(dist / radius) ** 2)
+        return out
+    return f

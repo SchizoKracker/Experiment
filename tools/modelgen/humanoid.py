@@ -84,7 +84,7 @@ def build_skeleton(p) -> dict:
     J["neck"] = v3(0, 0.012 * H, shoulder_z_raw + 0.02 * H)
     J["head"] = v3(0, 0.002 * H, H - head_h * 0.78)
     J["head_top"] = v3(0, 0.0, H)
-    sw = 0.105 * H * p["shoulder"] * lerp(1.0, 0.9, fem)
+    sw = 0.102 * H * p["shoulder"] * lerp(1.0, 0.9, fem)
     hw = 0.052 * H * p["hip"] * lerp(1.0, 1.12, fem)
     arm_len = H * p["arm"]
     up_len, fore_len, hand_len = 0.172 * arm_len, 0.148 * arm_len, 0.105 * H * p["hand"]
