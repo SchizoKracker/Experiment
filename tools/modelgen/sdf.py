@@ -337,7 +337,7 @@ class Shape:
 # --------------------------------------------------------------------------
 # swept profile ("loft") primitive: one continuous surface per body part
 # --------------------------------------------------------------------------
-def smooth_profile(keys, n=96):
+def smooth_profile(keys, n=512):
     """keys: [(t, value), ...] -> dense Catmull-Rom resample on t in [0,1]."""
     keys = sorted(keys)
     ts = np.array([k[0] for k in keys], np.float64)

@@ -105,7 +105,7 @@ def build_body(p, J) -> Shape:
 
     # ---------------- neck ----------------
     hh = J["_head_h"]
-    nw = p["neck"] * (1 - 0.1 * fem) * (1 + 0.2 * (mus - 0.5))
+    nw = p["neck"] * (1 - 0.2 * fem) * (1 + 0.2 * (mus - 0.5))
     neck_base = v3(0, 0.008 * H, 0.825 * H)
     neck_top = v3(0, J["head"][1] + 0.07 * hh, J["head_top"][2] - 0.9 * hh)
     s.union(loft(neck_base, neck_top, [(0, 0.036 * H * nw), (0.5, 0.033 * H * nw), (1, 0.033 * H * nw)],

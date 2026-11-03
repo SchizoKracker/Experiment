@@ -203,35 +203,7 @@ def _head(s, p, J):
     hh = J["_head_h"]
     top = J["head_top"]
     yc = J["head"][1]
-    R = REF_HEAD
-    z = np.array(R["z"])
-    zmax = z[-1]
-    w = np.array(R["w"])
-    fr = np.array(R["front"])
-    bk = np.array(R["back"])
-    lm = R["landmarks"]
-    # remove the nose from the front profile (rebuilt as its own form)
-    n0, n1 = lm["nasion"] - 0.01, lm["subnasale"] + 0.012
-    m = (z > n0) & (z < n1)
-    f0, f1 = np.interp(n0, z, fr), np.interp(n1, z, fr)
-    sm = (z[m] - n0) / (n1 - n0)
-    fr = fr.copy()
-    fr[m] = f0 + (f1 - f0) * sm + 0.012 * np.sin(np.pi * sm)
-    # race / face sliders
-    jaw = p["jaw"] * (1 - 0.08 * p["fem"])
-    wmod = np.where(z > 0.72, 1 + (jaw - 1) * np.clip((z - 0.72) / 0.2, 0, 1), 1.0)
-    w = w * wmod
-    fw = p.get("face_width", 1.0)
-    w = w * fw
-    # the front silhouette below the jaw angle is the NECK, not the face: taper jaw -> chin
-    jz, cz = 0.80, 1.0
-    wj = np.interp(jz, z, w)
-    sel = z > jz
-    u = np.clip((z[sel] - jz) / (cz - jz), 0, 1)
-    w[sel] = wj + (0.105 * p["chin"] - wj) * (u ** 1.6)
-    keep = z <= 1.02
-    z, w, fr, bk = z[keep], w[keep], fr[keep], bk[keep]
-    zmax = z[-1]
+    z, w, fr, bk, lm, zmax, P_, face_front = head_profile(p, J)
     t = z / zmax
     keys_w = list(zip(t, w * hh))
     keys_f = list(zip(t, fr * hh))
@@ -240,68 +212,28 @@ def _head(s, p, J):
     a = v3(0, yc, top[2])
     b = v3(0, yc, top[2] - zmax * hh)
     s.union(loft(a, b, keys_w, keys_w, keys_f, keys_b, n_front=nfr, n_back=2.1), k=0.015 * hh, tag="skin", name="head")
-    # rounded crown (loft caps are flat; this restores the dome exactly)
-    s.union(ellipsoid(v3(0, yc + (np.interp(0.33, z, bk) - np.interp(0.33, z, fr)) * 0.5 * hh, top[2] - 0.33 * hh),
-                      [np.interp(0.33, z, w) * hh * 0.995, (np.interp(0.33, z, fr) + np.interp(0.33, z, bk)) * 0.5 * hh * 0.995, 0.33 * hh]),
-            k=0.01 * hh, tag="skin", name="crown")
+    # cranium vault: superellipsoid least-squares fitted to the measured front + side silhouettes
+    import headfit
+    z0c, cc, ac, bc, ysh, ec = headfit.fit_crown(z, w, fr, bk)
+    cen = v3(0, yc - ysh * hh, top[2] - z0c * hh)
+    A_, B_, C_ = ac * hh, bc * hh, cc * hh
 
-    def P_(lat, frontv, zn):
-        """head-unit point: lateral, forward (+ = toward face), z from top"""
-        return v3(lat * hh, yc - frontv * hh, top[2] - zn * hh)
+    def vault(q, cen=cen, A_=A_, B_=B_, C_=C_, e=ec):
+        d = q - cen
+        h = np.sqrt((d[:, 0] / A_) ** 2 + (d[:, 1] / B_) ** 2)
+        Fv = (h ** e + np.abs(d[:, 2] / C_) ** e) ** (1.0 / e)
+        out = (Fv - 1.0) * min(A_, B_, C_)
+        # only the top of the skull: fade out below the widest point
+        return sdf.smax(out, (top[2] - 0.3 * hh) - q[:, 2], 0.08 * hh)
+    s.union((vault, cen - np.array([A_, B_, C_], np.float32), cen + np.array([A_, B_, C_], np.float32)), k=0.06 * hh, tag="skin", name="vault")
 
-    def face_front(zn, lat=0.0):
-        ww = np.interp(zn, z, w)
-        ff = np.interp(zn, z, fr)
-        n = 1.9
-        return ff * max(0.0, 1 - (abs(lat) / ww) ** n) ** (1 / n)
+    head_profile.crown = (z0c, cc, ac, bc, ysh, ec)
 
-    # ---- eyes: socket, lid shell, almond opening
-    ez = lm["eye"]
-    ex = 0.128
-    er = 0.053 * p["eye"]
-    for sx in (-1, 1):
-        surf = face_front(ez, ex)
-        ec = P_(sx * ex, surf - er * 0.62, ez)
-        s.sub(sphere(P_(sx * ex, surf + 0.02, ez - 0.012), 0.058 * hh), k=0.03 * hh, name="socket")
-        s.union(sphere(ec, (er + 0.008) * hh), k=0.022 * hh, tag="lid", name="lidshell")
-        Rr, aa = 0.105 * p["eye"], 0.03 * p["eye"]
-        up = np.array([0, 0, 1], F) @ sdf.euler(0, sx * p["eye_tilt"] * 10.0, 0)
-        c1 = ec + up * (-(Rr - aa) * hh)
-        c2 = ec + up * ((Rr - aa) * hh)
-        f1 = sphere(c1, Rr * hh)[0]
-        f2 = sphere(c2, Rr * hh)[0]
-        fy = ec[1] - 0.012 * hh
 
-        def almond(q, f1=f1, f2=f2, fy=fy):
-            return np.maximum(np.maximum(f1(q), f2(q)), q[:, 1] - fy)
-        s.sub((almond, ec - 0.15 * hh, ec + 0.15 * hh), k=0.004 * hh, name="eye_opening")
-        # brow ridge: soft, wide
-        s.union(ellipsoid(P_(sx * 0.11, face_front(lm["brow"], 0.11) - 0.03, lm["brow"]), [0.085 * hh, 0.03 * hh, 0.025 * hh * p["brow"]], sdf.euler(0, sx * -8, 0)),
-                k=0.03 * hh, tag="skin", name="brow")
-    # ---- nose
-    nl, nw, nb = p["nose_len"], p["nose_w"], p["nose_bridge"]
-    nas_z, tip_z, sub_z = lm["nasion"], lm["nose_tip"], lm["subnasale"]
-    tip_z = nas_z + (tip_z - nas_z) * nl
-    tip_front = np.interp(lm["nose_tip"], np.array(R["z"]), np.array(R["front"])) * (0.97 + 0.03 * nl)
-    nas_front = face_front(nas_z) - 0.01
-    s.union(round_cone(P_(0, nas_front - 0.02, nas_z + 0.01), P_(0, tip_front - 0.03, tip_z - 0.01), 0.026 * hh * nb, 0.032 * hh * nw),
-            k=0.02 * hh, tag="skin", name="nose_bridge")
-    s.union(sphere(P_(0, tip_front - 0.034, tip_z + 0.006), 0.036 * hh * nw), k=0.014 * hh, tag="skin", name="nose_tip")
-    for sx in (-1, 1):
-        s.union(sphere(P_(sx * 0.044 * nw, tip_front - 0.075, tip_z + 0.032), 0.03 * hh * nw), k=0.014 * hh, tag="skin", name="ala")
-        s.sub(ellipsoid(P_(sx * 0.022 * nw, tip_front - 0.06, sub_z - 0.006), [0.013 * hh, 0.022 * hh, 0.0095 * hh]), k=0.006 * hh, name="nostril")
-    # ---- mouth & lips
+    import face
+    face.features(s, p, J, P_, face_front, lm, hh)
     mz = lm["mouth"]
     lip_f = face_front(mz)
-    s.sub(ellipsoid(P_(0, lip_f + 0.01, mz), [0.095 * hh, 0.05 * hh, 0.0042 * hh]), k=0.006 * hh, name="mouth_line")
-    for sx in (-1, 1):
-        s.sub(sphere(P_(sx * 0.098, lip_f - 0.04, mz), 0.012 * hh), k=0.012 * hh, name="mouth_corner")
-    lp = p["lips"] * (1 + 0.12 * p["fem"])
-    s.union(ellipsoid(P_(0, lip_f - 0.03, mz - 0.026), [0.085 * hh, 0.03 * hh, 0.022 * hh * lp]), k=0.012 * hh, tag="lips", name="upper_lip", tag_eps=0.006 * hh)
-    s.union(ellipsoid(P_(0, lip_f - 0.035, mz + 0.03), [0.075 * hh, 0.03 * hh, 0.026 * hh * lp]), k=0.012 * hh, tag="lips", name="lower_lip", tag_eps=0.006 * hh)
-    # philtrum columns
-    for sx in (-1, 1):
-        s.union(capsule(P_(sx * 0.018, lip_f - 0.012, sub_z + 0.01), P_(sx * 0.022, lip_f - 0.012, mz - 0.04), 0.008 * hh), k=0.01 * hh, tag="skin", name="philtrum")
     # ---- ears
     _ears(s, p, J, P_, lm, z, w)
     if p["tusks"] > 0:
@@ -318,11 +250,11 @@ def _ears(s, p, J, P_, lm, z, w):
     hh = J["_head_h"]
     es = p["ear_size"]
     zt, zb = lm["ear_top"], lm["ear_bottom"]
-    zc = (zt + zb) * 0.5
+    zc = (zt + zb) * 0.5 - 0.035
     hgt = (zb - zt) * 0.5 * es
     for sx in (-1, 1):
-        lat = np.interp(zc, z, w) - 0.01
-        c = P_(sx * lat, -0.085, zc)
+        lat = np.interp(zc, z, w) - 0.03
+        c = P_(sx * lat, -0.12, zc)
         rot = sdf.euler(0, 0, sx * 18) @ sdf.euler(-10, 0, 0)
         # helix rim + concha bowl + lobe
         s.union(ellipsoid(c + v3(sx * 0.03 * hh, 0, 0), [0.03 * hh, 0.078 * hh * es, hgt * hh], rot), k=0.02 * hh, tag="skin", name="ear")
@@ -335,36 +267,81 @@ def _ears(s, p, J, P_, lm, z, w):
             s.union(round_cone(a, b, 0.04 * hh * es, 0.006 * hh), k=0.025 * hh, tag="skin", name="ear_tip")
 
 
+def eye_centers(p, J):
+    import face
+    z, w, fr, bk, lm, zmax, P_, face_front = head_profile(p, J)
+    hh = J["_head_h"]
+    return [face.eye_center(p, J, sx, face_front, lm["eye"], hh / 0.234, P_) for sx in (-1, 1)]
+
+
 def eye_shape(p, J) -> Shape:
     if p["snout"] > 0:
         from humanoid import eye_shape as e2
         return e2(p, J)
+    import face
     hh = J["_head_h"]
-    top = J["head_top"]
-    yc = J["head"][1]
-    R = REF_HEAD
-    z = np.array(R["z"])
-    ez = R["landmarks"]["eye"]
-    er = 0.053 * p["eye"]
     s = Shape()
-    for sx in (-1, 1):
-        ww = np.interp(ez, z, R["w"])
-        ff = np.interp(ez, z, R["front"])
-        surf = ff * max(0.0, 1 - (0.128 / ww) ** 1.9) ** (1 / 1.9)
-        c = v3(sx * 0.128 * hh, yc - (surf - er * 0.62) * hh, top[2] - ez * hh)
-        s.union(sphere(c, er * hh), tag="eye")
+    for c in eye_centers(p, J):
+        s.union(sphere(c, face.EYE_R_HU * p["eye"] * hh), tag="eye")
     return s
 
 
-def eye_centers(p, J):
+def _smooth1d(v, win=9):
+    k = np.hanning(win + 2)[1:-1]
+    k /= k.sum()
+    pad = win // 2
+    vp = np.concatenate([np.full(pad, v[0]), v, np.full(pad, v[-1])])
+    return np.convolve(vp, k, mode="valid")
+
+
+def head_profile(p, J):
+    """Measured head profile (smoothed), with nose and lips removed from the traced side profile
+    (both are rebuilt as anatomical forms in face.py)."""
     hh = J["_head_h"]
     top = J["head_top"]
     yc = J["head"][1]
     R = REF_HEAD
     z = np.array(R["z"])
-    ez = R["landmarks"]["eye"]
-    er = 0.053 * p["eye"]
-    ww = np.interp(ez, z, R["w"])
-    ff = np.interp(ez, z, R["front"])
-    surf = ff * max(0.0, 1 - (0.128 / ww) ** 1.9) ** (1 / 1.9)
-    return [v3(sx * 0.128 * hh, yc - (surf - er * 0.62) * hh, top[2] - ez * hh) for sx in (-1, 1)]
+    w = _smooth1d(np.array(R["w"]))
+    fr = np.array(R["front"])
+    bk = _smooth1d(np.array(R["back"]))
+    lm = R["landmarks"]
+    fr = fr.copy()
+    fr_full = _smooth1d(fr.copy(), 5)
+    # nose out of the profile
+    n0, n1 = lm["nasion"] - 0.01, lm["subnasale"] + 0.012
+    m = (z > n0) & (z < n1)
+    f0, f1 = np.interp(n0, z, fr), np.interp(n1, z, fr)
+    sm = (z[m] - n0) / (n1 - n0)
+    fr[m] = f0 + (f1 - f0) * sm + 0.012 * np.sin(np.pi * sm)
+    # lips out of the profile (the dental arch stays, slightly behind the old lip line)
+    l0, l1 = lm["subnasale"] + 0.012, 0.9
+    m2 = (z > l0) & (z < l1)
+    g0, g1 = np.interp(l0, z, fr), np.interp(l1, z, fr)
+    s2 = (z[m2] - l0) / (l1 - l0)
+    fr[m2] = g0 + (g1 - g0) * s2 + 0.006 * np.sin(np.pi * s2)
+    fr = _smooth1d(fr)
+    jaw = p["jaw"] * (1 - 0.08 * p["fem"])
+    wmod = np.where(z > 0.72, 1 + (jaw - 1) * np.clip((z - 0.72) / 0.2, 0, 1), 1.0)
+    w = w * wmod * p.get("face_width", 1.0)
+    jz, cz = 0.80, 1.0
+    wj = np.interp(jz, z, w)
+    sel = z > jz
+    u = np.clip((z[sel] - jz) / (cz - jz), 0, 1)
+    w[sel] = wj + (0.062 * p["chin"] - wj) * (u ** 1.25)
+    keep = z <= 1.02
+    z, w, fr, bk, fr_full = z[keep], w[keep], fr[keep], bk[keep], fr_full[keep]
+    zmax = z[-1]
+    head_profile.fr_full = (z, fr_full)
+
+    def P_(lat, frontv, zn):
+        """head-unit point: lateral, forward (+ = toward face), z from top"""
+        return v3(lat * hh, yc - frontv * hh, top[2] - zn * hh)
+
+    def face_front(zn, lat=0.0):
+        ww = np.interp(zn, z, w)
+        ff = np.interp(zn, z, fr)
+        n = 1.9
+        return float(ff * max(0.0, 1 - (abs(lat) / ww) ** n) ** (1 / n))
+
+    return z, w, fr, bk, lm, zmax, P_, face_front
