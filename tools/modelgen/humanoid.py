@@ -30,7 +30,7 @@ BASE = {
     "arm": 1.0,
     "limb_thick": 1.0,
     "hand": 1.0,
-    "foot": 1.07,
+    "foot": 1.0,
     "neck": 1.0,
     # face
     "jaw": 1.0, "chin": 1.0, "brow": 1.0, "cheek": 1.0, "nose_len": 1.0, "nose_w": 1.0,
@@ -110,9 +110,9 @@ def build_skeleton(p) -> dict:
         J[f"thigh.{side}"] = hj
         J[f"shin.{side}"] = kn
         J[f"foot.{side}"] = an
-        fl = 0.152 * H * p["foot"]
-        J[f"toe.{side}"] = an + v3(sx * 0.008 * H, -fl * 0.68, -0.032 * H)
-        J[f"toe_end.{side}"] = an + v3(sx * 0.012 * H, -fl * 0.92, -0.036 * H)
+        J[f"foot.{side}"] = an
+        import extremities
+        extremities.foot_joints(J, p, side)
     _build_hand_joints(J, p)
     if p["tail"] > 0:
         base = J["hips"] + v3(0, 0.09 * H * p["hip"], -0.02 * H)
@@ -146,32 +146,8 @@ def hand_frame(J, side):
 
 
 def _build_hand_joints(J, p):
-    H = p["height"]
-    hs = H * p["hand"] / 1.78
-    for side in ("L", "R"):
-        wr, fwd, n, ac = hand_frame(J, side)
-        palm_len = 0.095 * hs
-        spread = [0.0, 0.026, 0.009, -0.009, -0.025]
-        lens = {"thumb": (0.042, 0.032, 0.028), "index": (0.044, 0.026, 0.022), "middle": (0.048, 0.030, 0.024),
-                "ring": (0.045, 0.028, 0.023), "pinky": (0.036, 0.021, 0.019)}
-        for fi, fname in enumerate(FINGERS):
-            if fname == "thumb":
-                base = wr + fwd * 0.024 * hs + ac * 0.022 * hs + n * 0.012 * hs
-                d = (fwd * 0.55 + ac * 0.72 + n * 0.42)
-            else:
-                base = wr + fwd * (palm_len - 0.004 * hs * abs(fi - 2.2)) + ac * spread[fi] * hs
-                d = fwd + ac * spread[fi] * 0.6 + n * 0.12
-            d = d / np.linalg.norm(d)
-            q = base
-            for si in range(3):
-                J[f"{fname}{si + 1}.{side}"] = q.astype(F)
-                L = lens[fname][si] * hs
-                # gentle natural curl toward the palm
-                curl = 0.16 + 0.07 * si
-                d = d * math.cos(curl) + n * math.sin(curl)
-                d /= np.linalg.norm(d)
-                q = q + d * L
-            J[f"{fname}_end.{side}"] = q.astype(F)
+    import extremities
+    extremities.hand_joints(J, p)
 
 
 # --------------------------------------------------------------------------

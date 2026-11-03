@@ -81,6 +81,14 @@ def _torso_front(P, p, H, md, fem):
             P.line(v3(sx * 0.03 * H, 0, 0.703 * H), FWD, v3(sx * 0.094 * H, 0, 0.738 * H), FWD + X * 0.5, 0.0075 * H, -0.0026 * H * md)
             # anterior axillary fold
             P.line(v3(sx * 0.088 * H, 0, 0.742 * H), FWD + X * 0.6, v3(sx * 0.112 * H, 0, 0.752 * H), FWD + X * 0.8, 0.009 * H, 0.003 * H * md)
+            # clavicular head (upper pec) fills the chest up to the collarbone
+            P.bump(v3(sx * 0.05 * H, 0, 0.772 * H), FWD + UP * 0.25, X, 0.04 * H, 0.018 * H, 0.0042 * H * md)
+            # clavicular / sternal head separation: soft line sternum -> armpit
+            P.line(v3(sx * 0.016 * H, 0, 0.758 * H), FWD, v3(sx * 0.085 * H, 0, 0.752 * H), FWD + X * 0.5, 0.006 * H, -0.0007 * H * md)
+            # sternal border of each pec
+            P.line(v3(sx * 0.011 * H, 0, 0.79 * H), FWD, v3(sx * 0.013 * H, 0, 0.705 * H), FWD, 0.0055 * H, -0.0011 * H * md)
+            # deltopectoral groove: clavicle -> armpit, separating pec from front deltoid
+            P.line(v3(sx * 0.078 * H, 0, 0.805 * H), FWD + X * 0.4 + UP * 0.3, v3(sx * 0.104 * H, 0, 0.752 * H), FWD + X * 0.8, 0.0055 * H, -0.0022 * H * md)
             # nipple / areola hint
             P.bump(v3(sx * 0.062 * H, 0, 0.716 * H), FWD, X, 0.006 * H, 0.006 * H, 0.0009 * H, 0.004 * H)
         # clavicle ridge and the infraclavicular hollow
@@ -90,7 +98,7 @@ def _torso_front(P, p, H, md, fem):
         P.line(v3(sx * 0.014 * H, 0, 0.688 * H), FWD, v3(sx * 0.086 * H, 0, 0.632 * H), FWD + X * 0.8, 0.007 * H, 0.0011 * H * md)
         P.line(v3(sx * 0.03 * H, 0, 0.665 * H), FWD, v3(sx * 0.08 * H, 0, 0.615 * H), FWD + X * 0.8, 0.008 * H, -0.0009 * H * md)
         # external obliques: fleshy flank above the iliac crest
-        P.bump(v3(sx * 0.085 * H, 0, 0.572 * H), FWD * 0.5 + X, UP, 0.034 * H, 0.022 * H, 0.004 * H * md)
+        P.bump(v3(sx * 0.082 * H, 0, 0.575 * H), FWD * 0.7 + X, UP, 0.032 * H, 0.02 * H, 0.0032 * H * md)
         # serratus anterior: interdigitations on the ribs below the armpit
         for i, z in enumerate((0.708, 0.684, 0.66)):
             P.bump(v3(sx * 0.096 * H, -0.01 * H * i, z * H), FWD * (0.5 + 0.2 * i) + X, FWD + UP * 0.4, 0.011 * H, 0.0065 * H, 0.0015 * H * md)
@@ -150,8 +158,8 @@ def _pelvis(P, p, H, md, fem):
         P.line(v3(sx * 0.09 * H, 0, 0.553 * H), X + BK * 0.5, v3(sx * 0.08 * H, 0, 0.548 * H), X + FWD * 0.6, 0.007 * H, 0.0014 * H)
         P.bump(v3(sx * 0.097 * H, 0, 0.515 * H), X, UP, 0.03 * H, 0.016 * H, 0.0032 * H)
         # glutes: rounded cheeks, gluteal fold
-        P.bump(v3(sx * 0.05 * H, 0, 0.488 * H), BK, UP, 0.05 * H, 0.04 * H, 0.011 * H * gl)
-        P.bump(v3(sx * 0.075 * H, 0, 0.515 * H), BK * 0.6 + X, UP, 0.03 * H, 0.025 * H, 0.004 * H * gl)
+        P.bump(v3(sx * 0.052 * H, 0, 0.49 * H), BK, UP, 0.048 * H, 0.044 * H, 0.0175 * H * gl, 0.04 * H)
+        P.bump(v3(sx * 0.078 * H, 0, 0.515 * H), BK * 0.6 + X, UP, 0.03 * H, 0.026 * H, 0.0055 * H * gl)
         P.line(v3(sx * 0.02 * H, 0, 0.458 * H), BK, v3(sx * 0.085 * H, 0, 0.462 * H), BK + X * 0.3, 0.008 * H, -0.0018 * H)
     P.line(v3(0, 0, 0.54 * H), BK, v3(0, 0, 0.455 * H), BK, 0.006 * H, -0.006 * H)     # natal cleft
     P.bump(v3(0, 0, 0.478 * H), FWD, UP, 0.018 * H, 0.03 * H, 0.0035 * H)              # pubic mound
