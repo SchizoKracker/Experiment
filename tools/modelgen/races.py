@@ -65,7 +65,6 @@ def preset(name: str):
         p["brow"] *= FEM_ADJUST["brow_mul"]
         p["tusks"] *= 0.75
         p["hand"] *= 0.93
-        p["leg"] *= 1.03
         p["foot"] *= 0.93
     p["race"] = race
     p["sex"] = sex

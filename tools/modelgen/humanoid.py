@@ -85,7 +85,7 @@ def build_skeleton(p) -> dict:
     J["head"] = v3(0, 0.002 * H, H - head_h * 0.78)
     J["head_top"] = v3(0, 0.0, H)
     sw = 0.102 * H * p["shoulder"] * lerp(1.0, 0.94, fem)
-    hw = 0.052 * H * p["hip"] * lerp(1.0, 1.12, fem)
+    hw = 0.052 * H * p["hip"] * lerp(1.0, 1.05, fem)
     arm_len = H * p["arm"]
     up_len, fore_len, hand_len = 0.172 * arm_len, 0.148 * arm_len, 0.105 * H * p["hand"]
     a = math.radians(ARM_DROP_DEG)

@@ -85,3 +85,22 @@ Same skeleton/loft/brush machinery, `fem=1`. Re-measure from the female referenc
 wider pelvis (hips widest ≈ crotch level), smaller waist, thighs with more inner volume
 (smaller thigh gap), breasts as volumes (not brushes), softer/fewer muscle strokes
 (md scaled down), rounder glutes, slimmer arms/neck, smaller hands/feet.
+
+## Female base — lessons (round 1)
+
+- **Never scale leg length per sex/race without moving the pelvis tables.** Torso tables are in
+  absolute fractions of H; a 3 % longer female leg raised the hip joints above the pelvis and caused
+  every "shelf"/"waistband" artefact around the hips. Leg proportion changes must shift the pelvis too.
+- **Stale table keys create grooves.** When editing a profile table, scan for slope reversals
+  (a leftover key between two edited ones carved a horizontal crease across the abdomen).
+  Run the slope-reversal scan after edits.
+- **Rigid volumes leave rims; brushes don't.** A blended hip ellipsoid left a horizontal rim at its top.
+  Use Gaussian brushes for soft masses (hips, glutes) and keep amplitudes modest — large brush
+  amplitudes (≈0.02 H) also create shelves at their edges.
+- **Debug outlines per part** (torso-only / leg-only / base / with-brushes widths per height) instead of
+  iterating renders: it pinpoints which component protrudes.
+- Female hip curve: the pelvis wedge + thigh structure is shared with the male; the hourglass comes from
+  the pelvis width table (waist 0.068 → hips 0.098 at 0.48) and the thigh staying inside the pelvis
+  above ≈0.52.
+- Specks in the comparison renders at arm/torso and hand/hip are pose crevices (arms at 68–70°),
+  not present in the 42° base pose; the export step remeshes anyway.
