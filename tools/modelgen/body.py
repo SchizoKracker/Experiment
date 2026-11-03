@@ -106,7 +106,7 @@ def build_body(p, J) -> Shape:
     # ---------------- neck ----------------
     hh = J["_head_h"]
     nw = p["neck"] * (1 - 0.2 * fem) * (1 + 0.2 * (mus - 0.5))
-    neck_base = v3(0, 0.03 * H, 0.825 * H)
+    neck_base = v3(0, 0.017 * H, 0.825 * H)      # rises forward out of the upper back (no hump behind the thoracic arc)
     neck_top = v3(0, J["head"][1] + 0.05 * hh, J["head_top"][2] - 0.74 * hh)     # runs up inside the skull: no exposed cap under the jaw
     s.union(loft(neck_base, neck_top, [(0, 0.036 * H * nw), (0.5, 0.033 * H * nw), (1, 0.033 * H * nw)],
                  [(0, 0.036 * H * nw), (0.5, 0.033 * H * nw), (1, 0.033 * H * nw)],
@@ -206,5 +206,74 @@ def build_body(p, J) -> Shape:
     anatomy._head(s, p, J)
     import muscles
     muscles.apply(s, p, J)
+    _line_of_action(s, p, H)
     _race_extras(s, p, J)
     return s
+
+
+def _line_of_action(s, p, H):
+    """Posterior line of action, enforced on the built body: the neck -> thoracic stretch measured on the spine,
+    and the lumbar -> glute stretch measured either side of the spine (the midline there is the cleft)."""
+    _loa_segment(s, H, 0.66, 0.87, (0.0,), 0.045)
+    _loa_segment(s, H, 0.50, 0.68, (-0.035, 0.035), 0.03)
+    _nape_fillet(s, H)
+
+
+def _loa_segment(s, H, z0, z1, xcs, xw):
+    """Posterior line of action: the back's midline profile from the upper lumbar region to the nape must be
+    one smooth S (convex thoracic arc -> single inflection near C7 -> concave cervical curve).  Overlapping
+    local forms (trapezius, C7, nuchal furrow, neck/torso junction) leave small wiggles there, so: measure the
+    built profile, fit the smooth curve through it (penalised third-difference smoother, held near the data),
+    and apply the difference as a soft correction centred on the spine, fading out sideways and at both ends.
+    The head is untouched (the correction is zero above z1)."""
+    import anatomy
+    zs = np.arange(z0, z1 + 1e-9, 0.004)
+    w_end = np.clip((zs - z0) / 0.03, 0, 1) * np.clip((z1 - zs) / 0.02, 0, 1)
+    w_end = w_end * w_end * (3 - 2 * w_end)
+    corrs = []
+    for xc in xcs:
+        ys = []
+        for z in zs:
+            lo_, hi_ = -0.02, 0.2
+            for _ in range(26):
+                m = (lo_ + hi_) / 2
+                if s.eval(np.array([[xc * H, m * H, z * H]], F))[0] < 0:
+                    lo_ = m
+                else:
+                    hi_ = m
+            ys.append((lo_ + hi_) / 2)
+        ys = np.array(ys)
+        corrs.append((anatomy._whittaker(ys, tol=0.0025, order=3) - ys) * w_end)
+    xm = max(abs(x) for x in xcs) + 3 * xw
+    lo = np.array([-xm * H, -0.02 * H, (z0 - 0.01) * H], F)
+    hi = np.array([xm * H, 0.2 * H, (z1 + 0.01) * H], F)
+
+    def f(q, d):
+        out = np.zeros(len(q), F)
+        m = np.all((q > lo) & (q < hi), axis=1)
+        if not np.any(m):
+            return out
+        x, y, z = q[m, 0] / H, q[m, 1] / H, q[m, 2] / H
+        wy = np.clip((y - 0.01) / 0.02, 0, 1)
+        wy = wy * wy * (3 - 2 * wy)
+        acc = np.zeros(len(x), F)
+        for xc, corr in zip(xcs, corrs):
+            acc += np.interp(z, zs, corr, left=0.0, right=0.0) * np.exp(-((x - xc) / xw) ** 2)
+        out[m] = -(acc * wy * H)
+        return out
+    f.lo, f.hi = lo, hi
+    s.displace.append(f)
+
+
+def _nape_fillet(s, H):
+    # nape fillet: the head meets the neck with a tight blend (kept, for the jaw), which leaves a sharp concave
+    # corner under the occiput; a soft fill rounds it into the cervical curve (back of the neck only)
+    nape_z = 0.884
+    lo_n, ys_n = -0.02, 0.2
+    for _ in range(26):
+        m = (lo_n + ys_n) / 2
+        if s.eval(np.array([[0.0, m * H, nape_z * H]], F))[0] < 0:
+            lo_n = m
+        else:
+            ys_n = m
+    s.displace.append(sdf.brush(v3(0, lo_n * H, nape_z * H), [0.032 * H, 0.01 * H, 0.03 * H], 0.002 * H))
