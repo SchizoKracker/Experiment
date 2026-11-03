@@ -30,7 +30,7 @@ BASE = {
     "arm": 1.0,
     "limb_thick": 1.0,
     "hand": 1.0,
-    "foot": 1.0,
+    "foot": 1.07,
     "neck": 1.0,
     # face
     "jaw": 1.0, "chin": 1.0, "brow": 1.0, "cheek": 1.0, "nose_len": 1.0, "nose_w": 1.0,

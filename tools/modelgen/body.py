@@ -14,13 +14,14 @@ from sdf import F, Shape, capsule, ellipsoid, frame_z, loft, sphere
 
 # ------------------------------------------------------------------ torso --
 TORSO_Z = (0.455, 0.865)
-T_W_M = [(0.455, 0.062), (0.47, 0.094), (0.5, 0.103), (0.52, 0.1), (0.54, 0.095), (0.56, 0.09), (0.58, 0.087), (0.6, 0.086), (0.62, 0.086), (0.64, 0.087), (0.66, 0.087), (0.68, 0.09), (0.7, 0.094), (0.72, 0.105), (0.74, 0.108), (0.76, 0.108), (0.78, 0.106), (0.8, 0.106), (0.815, 0.104), (0.83, 0.094), (0.845, 0.076), (0.855, 0.06), (0.865, 0.042)]
+T_W_M = [(0.455, 0.062), (0.47, 0.094), (0.5, 0.103), (0.52, 0.1), (0.54, 0.095), (0.56, 0.09), (0.58, 0.087), (0.6, 0.086), (0.62, 0.086), (0.64, 0.088), (0.66, 0.091), (0.68, 0.095), (0.7, 0.099), (0.72, 0.105), (0.74, 0.108), (0.76, 0.108), (0.78, 0.106), (0.8, 0.106), (0.815, 0.104), (0.83, 0.094), (0.845, 0.076), (0.855, 0.06), (0.865, 0.042)]
 T_W_F = [(0.455, 0.066), (0.47, 0.102), (0.5, 0.112), (0.52, 0.108), (0.54, 0.098), (0.56, 0.089), (0.58, 0.082), (0.6, 0.076), (0.62, 0.074), (0.64, 0.075), (0.66, 0.078), (0.68, 0.083), (0.7, 0.087), (0.72, 0.09), (0.74, 0.092), (0.76, 0.092), (0.78, 0.088), (0.8, 0.092), (0.815, 0.09), (0.83, 0.081), (0.845, 0.065), (0.855, 0.052), (0.865, 0.036)]
 T_F_M = [(0.455, 0.03), (0.47, 0.048), (0.5, 0.054), (0.53, 0.054), (0.56, 0.055), (0.58, 0.055), (0.6, 0.054), (0.62, 0.054), (0.64, 0.056), (0.66, 0.06), (0.68, 0.067), (0.7, 0.073), (0.72, 0.075), (0.74, 0.074), (0.76, 0.07), (0.78, 0.064), (0.8, 0.058), (0.815, 0.05), (0.83, 0.04), (0.845, 0.026), (0.855, 0.018), (0.865, 0.01)]
 T_F_F = [(0.455, 0.03), (0.47, 0.045), (0.5, 0.051), (0.53, 0.052), (0.56, 0.052), (0.58, 0.051), (0.6, 0.05), (0.62, 0.049), (0.64, 0.05), (0.66, 0.053), (0.68, 0.058), (0.7, 0.062), (0.72, 0.064), (0.74, 0.064), (0.76, 0.062), (0.78, 0.058), (0.8, 0.051), (0.815, 0.043), (0.83, 0.036), (0.845, 0.025), (0.855, 0.017), (0.865, 0.01)]
-T_B_M = [(0.455, 0.04), (0.47, 0.058), (0.5, 0.066), (0.52, 0.065), (0.54, 0.06), (0.56, 0.053), (0.58, 0.047), (0.6, 0.045), (0.62, 0.046), (0.64, 0.049), (0.66, 0.053), (0.68, 0.057), (0.7, 0.06), (0.72, 0.062), (0.74, 0.063), (0.76, 0.063), (0.78, 0.061), (0.8, 0.056), (0.815, 0.05), (0.83, 0.044), (0.845, 0.042), (0.855, 0.041), (0.865, 0.036)]
-T_B_F = [(0.455, 0.042), (0.47, 0.062), (0.5, 0.072), (0.52, 0.071), (0.54, 0.064), (0.56, 0.055), (0.58, 0.046), (0.6, 0.043), (0.62, 0.043), (0.64, 0.045), (0.66, 0.049), (0.68, 0.052), (0.7, 0.054), (0.72, 0.056), (0.74, 0.057), (0.76, 0.057), (0.78, 0.055), (0.8, 0.051), (0.815, 0.046), (0.83, 0.041), (0.845, 0.039), (0.855, 0.038), (0.865, 0.033)]
-T_N = [(0.455, 2), (0.52, 2.1), (0.62, 2.1), (0.72, 2.4), (0.8, 2.25), (0.845, 2), (0.865, 2)]
+T_B_M = [(0.455, 0.04), (0.47, 0.058), (0.5, 0.066), (0.52, 0.065), (0.54, 0.06), (0.56, 0.053), (0.58, 0.047), (0.6, 0.045), (0.62, 0.046), (0.64, 0.05), (0.66, 0.055), (0.68, 0.06), (0.7, 0.064), (0.72, 0.067), (0.74, 0.069), (0.76, 0.069), (0.78, 0.066), (0.8, 0.06), (0.815, 0.05), (0.83, 0.044), (0.845, 0.042), (0.855, 0.041), (0.865, 0.036)]
+T_B_F = [(0.455, 0.042), (0.47, 0.062), (0.5, 0.072), (0.52, 0.071), (0.54, 0.064), (0.56, 0.055), (0.58, 0.046), (0.6, 0.043), (0.62, 0.043), (0.64, 0.045), (0.66, 0.051), (0.68, 0.055), (0.7, 0.058), (0.72, 0.061), (0.74, 0.062), (0.76, 0.062), (0.78, 0.06), (0.8, 0.055), (0.815, 0.046), (0.83, 0.041), (0.845, 0.039), (0.855, 0.038), (0.865, 0.033)]
+T_N = [(0.455, 2), (0.52, 2.1), (0.62, 2.1), (0.72, 2.2), (0.8, 2.15), (0.845, 2), (0.865, 2)]
+T_NB = [(0.455, 2.0), (0.52, 2.05), (0.62, 2.0), (0.72, 1.92), (0.8, 1.95), (0.845, 2.0), (0.865, 2.0)]
 
 # ------------------------------------------------------------------- limbs --
 # t: proximal joint (0) -> distal joint (1)
@@ -99,7 +100,7 @@ def build_body(p, J) -> Shape:
     Fr = [(z, v * H * (1 + 0.3 * (fat - 0.2) + (belly if 0.52 < z < 0.66 else 0))) for z, v in _mix(T_F_M, T_F_F, fem)]
     Bk = [(z, v * H * (1 + 0.25 * (fat - 0.2))) for z, v in _mix(T_B_M, T_B_F, fem)]
     s.union(loft(v3(0, 0, z0 * H), v3(0, 0.004 * H, z1 * H), _zk(W, z0, z1), _zk(W, z0, z1), _zk(Fr, z0, z1), _zk(Bk, z0, z1),
-                 n_front=_zk(T_N, z0, z1), n_back=_zk(T_N, z0, z1)), tag="skin", name="torso")
+                 n_front=_zk(T_N, z0, z1), n_back=_zk(T_NB, z0, z1)), tag="skin", name="torso")
 
     # ---------------- neck ----------------
     hh = J["_head_h"]
@@ -117,8 +118,13 @@ def build_body(p, J) -> Shape:
         s.union(ellipsoid(neck_base + (neck_top - neck_base) * 0.5 + v3(0, -0.026 * H * nw, 0), [0.006 * H, 0.006 * H, 0.009 * H]),
                 k=0.008 * H, tag="skin", name="adams_apple")
 
-    _muscles_torso(s, p, J)
-    _muscles_limbs(s, p, J)
+    if fem > 0.05:
+        for sx in (-1, 1):   # breasts (volume, not surface relief)
+            bs = (0.9 + 0.6 * p["fat"]) * fem
+            z, x = 0.712, 0.047
+            surf = torso_surface_front(z, x, fem, H)
+            s.union(ellipsoid(v3(sx * x * H, -(surf - 0.022 * bs) * H, z * H), [0.036 * H * bs, 0.03 * H * bs, 0.034 * H * bs], sdf.euler(14, 0, sx * -12)),
+                    k=0.016 * H, tag="skin", name="breast")
 
     # ---------------- arms ----------------
     for side, sx in (("L", 1.0), ("R", -1.0)):
@@ -132,7 +138,6 @@ def build_body(p, J) -> Shape:
         _limb(s, sh - up * 0.022 * H + v3(sx * 0.004 * H, 0, -0.004 * H), sh + up * 0.105 * H, DELTOID, H, outer, 0.016 * H, dm, dm, "deltoid",
               cap_round=0.95)
         # deltoid / biceps border and the deltoid's front edge
-        s.displace.append(sdf.stroke(sh + up * 0.06 * H + v3(0, -0.03 * H, -0.004 * H), sh + up * 0.105 * H + v3(0, -0.02 * H, 0), 0.006 * H, -0.0015 * H))
         fo = wr + (wr - el) / np.linalg.norm(wr - el) * 0.006 * H
         _limb(s, el, fo, FOREARM, H, outer, 0.005 * H, aw * (1 - 0.04 * fem), aw * (1 - 0.04 * fem), "forearm", ext_a=0.02, ext_b=0.01)
         s.union(sphere(el + v3(0, 0.021 * H * aw, 0.002 * H), 0.009 * H), k=0.01 * H, tag="skin", name="olecranon")
@@ -155,124 +160,13 @@ def build_body(p, J) -> Shape:
                 merged[t] = (merged[t] + v) * 0.5 if t in merged else v
             leg[key] = sorted(merged.items())
         _limb(s, top, an, leg, H, outer, 0.024 * H, 1.0, 1.0, "leg", ext_b=0.012)
-        s.displace.append(sdf.brush(kn + v3(0, -0.028 * H, 0.008 * H), [0.011 * H, 0.012 * H, 0.012 * H], 0.0028 * H))
-        s.displace.append(sdf.stroke(kn + v3(0, -0.028 * H, -0.006 * H), kn + v3(0, -0.025 * H, -0.03 * H), 0.006 * H, 0.0012 * H))
         for ox in (-1, 1):
             s.union(sphere(an + v3(ox * 0.0145 * H, 0.002 * H, 0.004 * H), 0.0068 * H), k=0.007 * H, tag="skin", name="malleolus")
         _foot(s, p, J, side)
     s.side = ""
 
     anatomy._head(s, p, J)
+    import muscles
+    muscles.apply(s, p, J)
     _race_extras(s, p, J)
     return s
-
-
-def _muscles_torso(s, p, J):
-    """Surface anatomy sculpted with displacement brushes (no stuck-on volumes)."""
-    H = p["height"]
-    fem, mus = p["fem"], p["muscle"]
-    md = 0.55 + 0.9 * mus
-    D = s.displace
-    br = sdf.brush
-    st = sdf.stroke
-
-    def front(z, x):
-        return -torso_surface_front(z, x, fem, H) * H
-
-    if fem < 0.5:
-        for sx in (-1, 1):
-            # pectoralis major: broad buildup, strongest along the lower-outer mass
-            D.append(br(v3(sx * 0.055 * H, front(0.728, 0.055), 0.728 * H), [0.046 * H, 0.03 * H, 0.032 * H], 0.0115 * H * md))
-            D.append(br(v3(sx * 0.07 * H, front(0.715, 0.07), 0.715 * H), [0.03 * H, 0.03 * H, 0.02 * H], 0.005 * H * md))
-            # lower pec border crease, sweeping up toward the armpit
-            D.append(st(v3(sx * 0.012 * H, front(0.699, 0.012) + 0.004 * H, 0.699 * H), v3(sx * 0.085 * H, front(0.72, 0.085) + 0.004 * H, 0.722 * H),
-                        0.0065 * H, -0.0035 * H * md))
-            # oblique / serratus softness on the flank
-            D.append(br(v3(sx * 0.082 * H, front(0.63, 0.08) * 0.6, 0.63 * H), [0.02 * H, 0.03 * H, 0.05 * H], 0.0018 * H * md))
-        # sternum valley, linea alba and two tendinous lines (very soft)
-        D.append(st(v3(0, front(0.76, 0) , 0.765 * H), v3(0, front(0.69, 0), 0.69 * H), 0.009 * H, -0.0012 * H * md))
-        for sx in (-1, 1):   # inguinal "V" lines: iliac crest -> pubis
-            D.append(st(v3(sx * 0.085 * H, front(0.545, 0.085) * 0.95, 0.545 * H), v3(sx * 0.02 * H, front(0.475, 0.02), 0.475 * H), 0.008 * H, -0.0022 * H * md))
-        D.append(st(v3(0, front(0.67, 0), 0.67 * H), v3(0, front(0.565, 0), 0.565 * H), 0.0045 * H, -0.0011 * H * md))
-        for z in (0.633, 0.598):
-            D.append(st(v3(-0.034 * H, front(z, 0.034), z * H), v3(0.034 * H, front(z, 0.034), z * H), 0.004 * H, -0.0007 * H * md))
-        for sx in (-1, 1):
-            D.append(br(v3(sx * 0.02 * H, front(0.615, 0.02), 0.615 * H), [0.016 * H, 0.02 * H, 0.05 * H], 0.0014 * H * md))
-    else:
-        for sx in (-1, 1):
-            bs = 0.9 + 0.6 * p["fat"]
-            z, x = 0.712, 0.047
-            surf = torso_surface_front(z, x, fem, H)
-            s.union(ellipsoid(v3(sx * x * H, -(surf - 0.022 * bs) * H, z * H), [0.036 * H * bs, 0.03 * H * bs, 0.034 * H * bs], sdf.euler(14, 0, sx * -12)),
-                    k=0.016 * H, tag="skin", name="breast")
-    for sx in (-1, 1):
-        # clavicle ridge + the hollow beneath it
-        D.append(st(v3(sx * 0.014 * H, -0.028 * H, 0.818 * H), v3(sx * 0.088 * H, -0.02 * H, 0.81 * H), 0.0055 * H, 0.0022 * H))
-        D.append(st(v3(sx * 0.03 * H, -0.04 * H, 0.796 * H), v3(sx * 0.08 * H, -0.035 * H, 0.792 * H), 0.008 * H, -0.0012 * H))
-        # trapezius: slope from neck to shoulder, mass on the upper back
-        D.append(st(v3(sx * 0.026 * H, 0.022 * H, 0.858 * H), v3(sx * 0.095 * H, 0.008 * H, 0.812 * H), 0.012 * H, 0.0042 * H * md))
-        D.append(br(v3(sx * 0.035 * H, 0.06 * H, 0.77 * H), [0.035 * H, 0.03 * H, 0.05 * H], 0.005 * H * md))
-        # latissimus: soft widening of the back below the armpit
-        D.append(br(v3(sx * 0.075 * H, 0.04 * H, 0.715 * H), [0.026 * H, 0.03 * H, 0.06 * H], 0.0055 * H * md))
-        # scapula edge (very soft)
-        D.append(st(v3(sx * 0.03 * H, 0.064 * H, 0.775 * H), v3(sx * 0.05 * H, 0.06 * H, 0.705 * H), 0.008 * H, -0.0022 * H * md))
-        # erector columns -> spinal groove
-        D.append(st(v3(sx * 0.016 * H, 0.05 * H, 0.66 * H), v3(sx * 0.016 * H, 0.05 * H, 0.56 * H), 0.012 * H, 0.0045 * H * md))
-    D.append(st(v3(0, 0.07 * H, 0.78 * H), v3(0, 0.05 * H, 0.55 * H), 0.005 * H, -0.0015 * H))
-    gl = 1 + 0.25 * fem + 0.3 * (p["fat"] - 0.2)
-    for sx in (-1, 1):
-        # gluteus medius / tensor fasciae latae: the upper outer hip mass
-        D.append(br(v3(sx * 0.097 * H, 0.005 * H, 0.515 * H), [0.014 * H, 0.03 * H, 0.03 * H], 0.0032 * H))
-        # iliac crest: soft ridge where the waist meets the hip
-        D.append(st(v3(sx * 0.09 * H, 0.03 * H, 0.552 * H), v3(sx * 0.082 * H, -0.035 * H, 0.548 * H), 0.007 * H, 0.0014 * H))
-        # hip crease where the thigh leaves the pelvis
-        D.append(st(v3(sx * 0.09 * H, -0.025 * H, 0.488 * H), v3(sx * 0.03 * H, -0.045 * H, 0.462 * H), 0.007 * H, -0.0018 * H))
-    # lower abdomen / pubic mound
-    D.append(br(v3(0, -0.05 * H, 0.478 * H), [0.03 * H, 0.02 * H, 0.018 * H], 0.0035 * H))
-    for sx in (-1, 1):
-        D.append(br(v3(sx * 0.05 * H, 0.06 * H, 0.488 * H), [0.04 * H, 0.03 * H, 0.05 * H], 0.011 * H * gl))
-        D.append(br(v3(sx * 0.075 * H, 0.04 * H, 0.515 * H), [0.025 * H, 0.03 * H, 0.03 * H], 0.004 * H * gl))
-        # gluteal fold
-        D.append(st(v3(sx * 0.02 * H, 0.06 * H, 0.458 * H), v3(sx * 0.085 * H, 0.04 * H, 0.462 * H), 0.008 * H, -0.0018 * H))
-    D.append(st(v3(0, 0.09 * H, 0.54 * H), v3(0, 0.07 * H, 0.455 * H), 0.006 * H, -0.006 * H))   # cleft
-    s.sub(ellipsoid(v3(0, -0.056 * H * (1 + 0.3 * (p["fat"] - 0.2)), 0.585 * H), [0.0035 * H, 0.007 * H, 0.0045 * H]), k=0.003 * H, name="navel")
-
-
-def _muscles_limbs(s, p, J):
-    H = p["height"]
-    mus = p["muscle"]
-    md = 0.55 + 0.9 * mus
-    D = s.displace
-    st = sdf.stroke
-    br = sdf.brush
-    for side, sx in (("L", 1.0), ("R", -1.0)):
-        hj, kn, an = J[f"thigh.{side}"], J[f"shin.{side}"], J[f"foot.{side}"]
-        ax = (kn - hj) / np.linalg.norm(kn - hj)
-        # --- quadriceps: rectus femoris (centre), vastus lateralis (outer sweep), vastus medialis (teardrop)
-        fwd = v3(0, -1, 0)
-        rf_a = hj + ax * 0.04 * H + fwd * 0.045 * H
-        rf_b = kn + fwd * 0.03 * H - ax * 0.07 * H
-        D.append(st(rf_a, rf_b, 0.02 * H, 0.0034 * H * md))
-        D.append(br(hj + ax * 0.13 * H + v3(sx * 0.042 * H, -0.018 * H, 0), [0.022 * H, 0.028 * H, 0.075 * H], 0.0042 * H * md))
-        D.append(br(kn - ax * 0.05 * H + v3(-sx * 0.024 * H, -0.02 * H, 0), [0.017 * H, 0.018 * H, 0.03 * H], 0.0042 * H * md))
-        # grooves: lateralis | rectus, medialis | rectus (converging on the patella), sartorius diagonal, IT band
-        D.append(st(hj + ax * 0.08 * H + v3(sx * 0.022 * H, -0.05 * H, 0), kn - ax * 0.045 * H + v3(sx * 0.016 * H, -0.03 * H, 0), 0.009 * H, -0.0012 * H * md))
-        D.append(st(hj + ax * 0.12 * H + v3(-sx * 0.012 * H, -0.05 * H, 0), kn - ax * 0.06 * H + v3(-sx * 0.012 * H, -0.032 * H, 0), 0.009 * H, -0.001 * H * md))
-        D.append(st(hj + v3(sx * 0.03 * H, -0.045 * H, 0.03 * H), kn + v3(-sx * 0.03 * H, 0.0, 0.02 * H), 0.006 * H, -0.0012 * H * md))
-        D.append(st(hj + ax * 0.06 * H + v3(sx * 0.055 * H, 0.0, 0), kn - ax * 0.03 * H + v3(sx * 0.034 * H, 0.004 * H, 0), 0.006 * H, -0.001 * H * md))
-        # hamstrings: two soft columns on the back of the thigh
-        for ox in (-1, 1):
-            D.append(st(hj + ax * 0.05 * H + v3(ox * 0.018 * H, 0.05 * H, 0), kn - ax * 0.06 * H + v3(ox * 0.02 * H, 0.032 * H, 0), 0.016 * H, 0.0018 * H * md))
-        # calf: gastrocnemius heads with a soft split
-        sk = (an - kn) / np.linalg.norm(an - kn)
-        for ox in (-1, 1):
-            D.append(br(kn + sk * 0.07 * H + v3(ox * 0.014 * H, 0.03 * H, 0), [0.014 * H, 0.016 * H, 0.04 * H], 0.0025 * H * md))
-        D.append(st(kn + sk * 0.04 * H + v3(0, 0.044 * H, 0), kn + sk * 0.11 * H + v3(0, 0.04 * H, 0), 0.005 * H, -0.0012 * H * md))
-        # shin bone edge
-        D.append(st(kn + sk * 0.04 * H + v3(0, -0.026 * H, 0), an + v3(0, -0.019 * H, 0.03 * H), 0.006 * H, 0.0008 * H))
-    for side, sx in (("L", 1.0), ("R", -1.0)):
-        sh, el = J[f"upper_arm.{side}"], J[f"forearm.{side}"]
-        ax = (el - sh) / np.linalg.norm(el - sh)
-        # biceps peak and the groove between biceps and triceps
-        D.append(br(sh + ax * 0.11 * H + v3(0, -0.022 * H, 0), [0.016 * H, 0.016 * H, 0.04 * H], 0.0025 * H * md))
-        D.append(br(sh + ax * 0.08 * H + v3(0, 0.025 * H, 0), [0.016 * H, 0.016 * H, 0.05 * H], 0.0022 * H * md))
