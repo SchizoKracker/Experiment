@@ -25,11 +25,34 @@ ARCH_ZN = [0.490, 0.474, 0.455, 0.437, 0.442, 0.468]
 ARCH_AMP = [0.000, 0.004, 0.009, 0.011, 0.009, 0.004]
 
 
+LID_ARCS = {}                          # sx -> (upper margin pts, lower margin pts, eye centre), filled by features()
+# eyebrow hair arch measured on the front view of 4.webp (lat, zn)
+BROW_HAIR_LAT = [0.060, 0.080, 0.110, 0.157, 0.200, 0.240]
+BROW_HAIR_ZN = [0.478, 0.470, 0.450, 0.427, 0.427, 0.438]
+
+
+def tube(pts, r):
+    """solid tube along a polyline (SDF)"""
+    P = np.asarray(pts, F)
+    lo, hi = P.min(0) - 2 * r, P.max(0) + 2 * r
+
+    def f(q):
+        best = np.full(len(q), np.inf, F)
+        for i in range(len(P) - 1):
+            ab = P[i + 1] - P[i]
+            t = np.clip(((q - P[i]) @ ab) / float(ab @ ab), 0, 1)
+            best = np.minimum(best, np.linalg.norm(q - (P[i] + np.outer(t, ab)), axis=1))
+        return best - r
+    return f, lo, hi
+
+
 def ridge(pts, amps, r):
     """Smooth ridge along a polyline: Gaussian in the distance to the line, amplitude interpolated
     along it (no double-counting at the joints, unlike chained strokes)."""
     P = np.asarray(pts, F)
     A = np.asarray(amps, F)
+    sgn = -1.0 if A.min() < 0 else 1.0
+    A = np.abs(A)
     lo, hi = P.min(0) - 3.2 * r, P.max(0) + 3.2 * r
 
     def f(p, d):
@@ -44,7 +67,7 @@ def ridge(pts, amps, r):
             t = np.clip(((q - P[i]) @ ab) / float(ab @ ab), 0, 1)
             dist = np.linalg.norm(q - (P[i] + np.outer(t, ab)), axis=1)
             v = np.maximum(v, (A[i] + (A[i + 1] - A[i]) * t) * np.exp(-(dist / r) ** 2))   # continuous at joints
-        out[m] = -v
+        out[m] = -v * sgn
         return out
     f.lo, f.hi = lo, hi
     return f
@@ -76,8 +99,11 @@ def features(s, p, J, P_, face_front, lm, hh):
     er = EYE_R_HU * p["eye"] * hh
     lat = LMK["pupil_lat"]
     hw = (LMK["canthus_out_lat"] - LMK["canthus_in_lat"]) / 2 * hh * (0.95 + 0.05 * p["eye"])
-    ha = LMK["eye_open_h"] / 2 * hh
-    Rr = (hw * hw + ha * ha) / (2 * ha)              # circle through the canthi and the lid apex
+    # lid apex heights measured on the front view (4.webp): upper 0.029, lower 0.033 above/below the pupil line
+    ha_u, ha_l = LMK["eye_open_up"] * hh, LMK["eye_open_lo"] * hh
+    ha = ha_u
+    Ru = (hw * hw + ha_u * ha_u) / (2 * ha_u)        # circle through the canthi and the upper lid apex
+    Rl = (hw * hw + ha_l * ha_l) / (2 * ha_l)        # ... and the lower lid apex
     brow_z = top - LMK["brow_bone_zn"] * hh
     for sx in (-1, 1):
         c = eye_center(p, J, sx, face_front, 0, 0, P_)
@@ -95,19 +121,44 @@ def features(s, p, J, P_, face_front, lm, hh):
         tilt = np.radians(3.0 + 4.0 * p.get("eye_tilt", 0.0)) * sx
         upv = np.array([-np.sin(tilt), 0, np.cos(tilt)], F)
         oc = c + v3(sx * ((LMK["canthus_in_lat"] + LMK["canthus_out_lat"]) / 2 - lat) * hh, 0, 0)
-        c1, c2 = oc - upv * (Rr - ha), oc + upv * (Rr - ha)
+        c1, c2 = oc - upv * (Ru - ha_u), oc + upv * (Rl - ha_l)
         fy = c[1] - er * 0.45
 
-        def almond(q, c1=c1, c2=c2, Rr=Rr, fy=fy):
+        def almond(q, c1=c1, c2=c2, Ru=Ru, Rl=Rl, fy=fy):
             # 2D almond (in the x-z plane) extruded front-to-back: the opening keeps its full size at the lid surface
-            d1 = np.hypot(q[:, 0] - c1[0], q[:, 2] - c1[2]) - Rr
-            d2 = np.hypot(q[:, 0] - c2[0], q[:, 2] - c2[2]) - Rr
+            d1 = np.hypot(q[:, 0] - c1[0], q[:, 2] - c1[2]) - Ru
+            d2 = np.hypot(q[:, 0] - c2[0], q[:, 2] - c2[2]) - Rl
             return np.maximum(np.maximum(d1, d2), q[:, 1] - fy)
         s.sub((almond, c - 0.2 * hh, c + 0.2 * hh), k=0.004 * hh, name="eye_opening")
-        # upper-lid crease (one soft stroke following the opening, ~5 mm above it)
-        pts = [oc + v3(sx * t * hw * 0.95, -er * (0.9 - 0.25 * t * t), ha + 0.02 * hh - 0.012 * hh * t * t) for t in (-1, -0.4, 0.3, 1)]
-        for a_, b_ in zip(pts[:-1], pts[1:]):
-            D.append(sdf.stroke(a_, b_, 0.009 * hh, -0.0045 * hh * (1 - 0.3 * fem)))
+        # ---- eyelids: rounded lid margins that hug the eyeball, upper-lid fold over the crease
+        rv = np.array([upv[2], 0, -upv[0]], F)
+        ts = np.linspace(-1, 1, 15)
+
+        def arc(off_u, off_l, rad):
+            up, lo_ = [], []
+            for t_ in ts:
+                x = t_ * hw
+                zu = np.sqrt(max(Ru * Ru - x * x, 0)) - (Ru - ha_u)
+                zl = -(np.sqrt(max(Rl * Rl - x * x, 0)) - (Rl - ha_l))
+                for z_, off, L in ((zu, off_u, up), (zl, -off_l, lo_)):
+                    q = oc + rv * x + upv * (z_ + off)
+                    # project forward (-y) onto the sphere of radius rad: the front of the eye, not its top
+                    dx, dz = q[0] - c[0], q[2] - c[2]
+                    dy = np.sqrt(max(rad * rad - dx * dx - dz * dz, (0.25 * rad) ** 2))
+                    L.append(np.array([q[0], c[1] - dy, q[2]], F))
+            return up, lo_
+        mr = 0.0055 * hh                                   # lid margin radius (~1.3 mm)
+        up_m, lo_m = arc(mr * 0.7, mr * 0.6, er + 0.0035 * hh)
+        LID_ARCS[sx] = (np.array(up_m), np.array(lo_m), c.copy())
+        s.union(tube(up_m, mr), k=0.004 * hh, tag="lid", name="upper_lid_margin")
+        s.union(tube(lo_m, mr * 0.85), k=0.004 * hh, tag="lid", name="lower_lid_margin")
+        # crease (groove) and the fold of skin above it, following the opening; lower-lid groove below
+        up_c, lo_c = arc(0.022 * hh, 0.02 * hh, er + 0.008 * hh)
+        up_f, _ = arc(0.034 * hh, 0.0, er + 0.012 * hh)
+        taper = list(np.clip(1 - np.abs(ts) ** 3, 0, 1))
+        D.append(ridge(up_c, [-0.005 * hh * a for a in taper], 0.008 * hh))
+        D.append(ridge(up_f, [0.0045 * hh * a for a in taper], 0.011 * hh))
+        D.append(ridge(lo_c, [-0.003 * hh * a for a in taper], 0.009 * hh))
 
     # ============================================================ BROW RIDGE
     # supraorbital arch measured on the front view (follows the brow, ~2 mm under the hair line), running
@@ -196,6 +247,17 @@ def features(s, p, J, P_, face_front, lm, hh):
     # philtrum groove between the columns, ending in the cupid's-bow dip
     D.append(sdf.stroke(Pn.surf(P_(0, 0, LMK["subnasale_zn"] + 0.008), v3(0, -1, 0)), Pn.surf(P_(0, 0, uz + 0.002), v3(0, -1, 0)),
                         0.011 * hh, -0.008 * hh))
+
+    # ============================================================ SIDE PLANES
+    # the face turns from its front plane to the side plane along the line temple -> outer orbital rim ->
+    # cheekbone -> cheek; a soft ridge on that line, the temple and the cheek below the zygoma slightly hollow
+    SIDE = [(0.285, 0.40, 0.004), (0.262, 0.50, 0.006), (0.245, 0.60, 0.009), (0.238, 0.68, 0.006), (0.24, 0.78, 0.002)]
+    for sx in (-1, 1):
+        dirn = _n(v3(sx * 0.75, -1, 0))
+        pts = [Pn.surf(P_(sx * la, 0, zn), dirn) for la, zn, _ in SIDE]
+        D.append(ridge(pts, [a * hh for _, _, a in SIDE], 0.03 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.30, 0, 0.47), _n(v3(sx, -0.6, 0))), [0.04 * hh, 0.04 * hh, 0.045 * hh], -0.006 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.20, 0, 0.75), _n(v3(sx * 0.6, -1, 0))), [0.035 * hh, 0.03 * hh, 0.04 * hh], -0.005 * hh))
 
     # ============================================================ BROAD FORMS
     for sx in (-1, 1):

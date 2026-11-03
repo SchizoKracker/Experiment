@@ -34,6 +34,38 @@ def scalp_mask(hf: HeadFrame, front_zn=0.24, nape_zn=0.86, sideburn=0.6):
     return m
 
 
+# hairline map (female base): hairline height zn as a function of the azimuth around the head
+# (0 = straight forward, 90 = over the ear, 180 = nape).  Front at a third of the face above the brow
+# (Loomis: hairline -> brow -> nose base -> chin in equal thirds: 0.48 - 0.26 = 0.22), gently rounded,
+# shallow temple recesses, sideburn in front of the ear, up and over the ear, down to the nape.
+HL_THETA = [0, 12, 24, 36, 48, 60, 70, 78, 84, 90, 102, 114, 124, 140, 160, 180]
+HL_ZN = [0.218, 0.219, 0.226, 0.245, 0.275, 0.315, 0.37, 0.47, 0.50, 0.405, 0.395, 0.42, 0.58, 0.76, 0.84, 0.86]
+
+
+def hairline_zn(u, f):
+    th = np.degrees(np.arctan2(np.abs(u), f + 0.02))
+    return np.interp(th, HL_THETA, HL_ZN)
+
+
+def hairline_density(hf, p, feather=0.028):
+    """1 well inside the hairline, feathering to 0 at the hairline (no hard edge)"""
+    u, f, zn = hf.local(p)
+    return smooth(0.0, feather, hairline_zn(u, f) - zn)
+
+
+def hair_roots(shape, J, n, feather=0.028, seed=0):
+    """area-uniform roots inside the mapped hairline, with a feathered (sparser) hairline edge"""
+    hf = HeadFrame(J)
+    lo, hi = _clip_head(hf, J)
+
+    def mask(p):
+        u, f, zn = hf.local(p)
+        return (zn < hairline_zn(u, f)) & (zn > -0.05)
+    roots, nrm = hr.surface_samples(shape, J, lo, hi, int(n * 1.25), mask)
+    keep = np.random.default_rng(seed).random(len(roots)) < hairline_density(hf, roots, feather)
+    return roots[keep][:n], nrm[keep][:n]
+
+
 # --------------------------------------------------------------------------
 def _clip_head(hf, J, below=1.25):
     c = np.array([0, hf.yc, hf.top - 0.5 * hf.hh], F)
@@ -114,69 +146,96 @@ def male_beard(shape, J, field, n_guides=600, n_children=16000, M=8):
 
 
 def brows(shape, J, field, density=1.0, M=6):
+    """Eyebrows rooted on the measured brow-hair arch (face.BROW_HAIR_*): full medially, tapering tail;
+    medial hairs point up, the body sweeps out along the arch."""
+    import face
     hf = HeadFrame(J)
     lo, hi = _clip_head(hf, J)
-    bz = LM["brow"]
 
     def mask(p):
         u, f, zn = hf.local(p)
         au = np.abs(u)
-        # tapered arch: thick medially, thin at the tail
-        centre = bz + 0.005 - 0.03 * np.sin(np.clip((au - 0.04) / 0.2, 0, 1) * np.pi) * 0.6 + 0.02 * smooth(0.18, 0.24, au)
-        half = 0.017 * (1 - 0.6 * smooth(0.06, 0.24, au))
-        return (au > 0.035) & (au < 0.245) & (np.abs(zn - centre) < half) & (f > 0.15)
-    n = int(1400 * density)
-    roots, nrm = hr.surface_samples(shape, J, lo, hi, n, mask)
-    u, f, zn = hf.local(roots)
+        centre = np.interp(au, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN)
+        half = 0.016 * (1 - 0.65 * smooth(0.08, 0.24, au))
+        return (au > 0.058) & (au < 0.242) & (np.abs(zn - centre) < half) & (f > 0.15)
+    n = int(2800 * density)
+    roots, nrm = hr.surface_samples(shape, J, lo, hi, n, mask, h=0.0016)
     k = hf.hh / 0.23
-    length = (0.0075 + 0.003 * RNG_uniform(len(roots))) * k
-    lift = np.full(len(roots), 0.0004, F)
+    length = (0.0065 + 0.0035 * RNG_uniform(len(roots))) * k
+    lift = np.full(len(roots), 0.0006, F)
 
     def flow(p, nn, s):
         uu, ff, z = hf.local(p)
-        medial = smooth(0.09, 0.04, np.abs(uu))
-        d = np.stack([np.sign(uu) * (1 - 0.7 * medial), np.zeros_like(uu), 0.15 + 0.9 * medial - 0.25 * smooth(0.15, 0.24, np.abs(uu))], 1)
+        au = np.abs(uu)
+        medial = smooth(0.10, 0.065, au)
+        # along the arch: slope of the measured arch
+        dz = np.interp(au + 0.01, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN) - np.interp(au, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN)
+        along = np.stack([np.sign(uu) * 0.01, np.zeros_like(uu), -dz], 1)
+        along = along / (np.linalg.norm(along, axis=1, keepdims=True) + 1e-9)
+        up = np.tile(np.array([0, 0, 1.0], F), (len(p), 1))
+        d = along * (1 - medial)[:, None] + up * (0.25 + 0.75 * medial)[:, None]
         return _n(d.astype(F))
-    S = hr.grow_along_surface(roots, nrm, flow, length, M, field, lift, rise=0.25)
-    S = hr.clump_and_frizz(S, roots, 120, clump=0.25, frizz=0.0003, length_var=0.25, seed=5)
-    return dict(name="brows", strands=S, r_root=0.00007, r_tip=0.00002)
+    S = hr.grow_along_surface(roots, nrm, flow, length, M, field, lift, rise=0.35)
+    S = hr.clump_and_frizz(S, roots, 220, clump=0.3, frizz=0.0002, length_var=0.25, seed=5)
+    return dict(name="brows", strands=S, r_root=0.000085, r_tip=0.00003)
 
 
-def lashes(J, p, eye_centers, length=0.0085, n=90, M=6):
+def lashes(J, p, eye_centers=None, length=0.0095, n=200, M=7, shape=None):
+    """Upper and lower lashes rooted on the lid margins built in face.features (face.LID_ARCS)."""
+    import face
     hf = HeadFrame(J)
     k = hf.hh / 0.23
-    er = 0.053 * p["eye"] * hf.hh
     out = []
-    for c in eye_centers:
-        sx = 1 if c[0] > 0 else -1
-        for i in range(n):
-            t = i / (n - 1)
-            ang = (t - 0.5) * 2.0                                         # along the upper lid arc
-            base = c + np.array([sx * np.sin(ang) * er * 0.98, -np.cos(ang) * er * 0.92 - 0.0012, er * 0.55 + 0.0006], F)
-            d0 = _n(np.array([sx * np.sin(ang) * 0.3, -1.0, 0.35], F))
-            pts = [base]
-            d = d0
-            L = length * k * (0.65 + 0.35 * np.sin(t * np.pi))
-            for j in range(1, M):
-                d = _n(d + np.array([0, 0, 0.32], F))                    # curl upward
-                pts.append(pts[-1] + d * L / (M - 1))
-            out.append(pts)
+    rng = np.random.default_rng(11)
+    for sx, (up, lo, c) in face.LID_ARCS.items():
+        for arcpts, nn, L0, curl, lower in ((up, n, length, 0.42, False), (lo, n // 2, length * 0.45, -0.3, True)):
+            tt = np.linspace(0, len(arcpts) - 1.001, nn) + rng.uniform(-0.3, 0.3, nn)
+            tt = np.clip(tt, 0, len(arcpts) - 1.001)
+            for t in tt:
+                i = int(t); a = t - i
+                base = arcpts[i] * (1 - a) + arcpts[i + 1] * a
+                outw = _n(base - c)                                       # off the eyeball
+                tn = t / (len(arcpts) - 1)
+                prof = np.sin(np.clip(tn, 0.05, 1) * np.pi) ** 0.6
+                # longer toward the outer corner (sx side is lateral)
+                lat_side = tn if (arcpts[-1][0] * sx > arcpts[0][0] * sx) else 1 - tn
+                L = L0 * k * (0.45 + 0.55 * prof) * (0.85 + 0.35 * lat_side) * rng.uniform(0.85, 1.1)
+                # mostly forward out of the lid edge, then curling up (upper) / down (lower)
+                d = _n(np.array([0, -1.0, 0], F) + outw * 0.25 + np.array([sx * 0.3 * lat_side, 0, (-0.35 if lower else 0.12)], F))
+                if shape is not None:
+                    # march out from the margin centre (outward + forward) to the skin of the lid edge
+                    md = _n(outw * 0.6 + np.array([0, -1.0, 0], F))
+                    for _ in range(40):
+                        if shape.eval(base[None].astype(F))[0] >= 0:
+                            break
+                        base = base + md * 0.0002
+                if shape is not None and shape.eval(base[None].astype(F))[0] < -0.0004:
+                    continue                                              # could not reach the lid skin
+                pts = [base]
+                for j in range(1, M):
+                    d = _n(d + np.array([0, 0, curl], F))
+                    pts.append(pts[-1] + d * L / (M - 1))
+                out.append(pts)
     S = np.array(out, F)
-    return dict(name="lashes", strands=S, r_root=0.00006, r_tip=0.00002)
+    if shape is not None:
+        d = shape.eval(S.reshape(-1, 3)).reshape(S.shape[:2])
+        S = S[d[:, 1:].min(1) > -0.0004]                                 # no lash may pass through the lid/brow
+    return dict(name="lashes", strands=S, r_root=0.00007, r_tip=0.00002)
 
 
-def female_braid(shape, J, field, n_guides=1400, n_children=30000, M=40, braid_len=0.42):
+def female_braid(shape, J, field, n_guides=1600, n_children=95000, M=40, braid_len=0.42):
     """Hair pulled back from the face and gathered into a single three-strand braid down the back,
     with a few loose face-framing tendrils."""
     hf = HeadFrame(J)
     lo, hi = _clip_head(hf, J)
-    roots, nrm = hr.surface_samples(shape, J, lo, hi, n_guides + n_children, scalp_mask(hf, front_zn=0.25, nape_zn=0.84))
+    roots, nrm = hair_roots(shape, J, n_guides + n_children)
     u, f, zn = hf.local(roots)
     k = hf.hh / 0.23
     G = hf.world(np.array([0.0]), np.array([-0.44]), np.array([0.62]))[0]          # gather point at the back of the head
     # scalp part: follow the head surface toward G
     d_scalp = np.linalg.norm(roots - G, axis=1) * 1.25 + 0.01
-    lift = (0.0015 + 0.004 * smooth(0.4, 0.05, zn)).astype(F)
+    # volume: hair stands off the scalp a little, more on the crown, least at the feathered hairline
+    lift = (0.0012 + 0.0045 * smooth(0.45, 0.08, zn) * smooth(0.0, 0.04, hairline_zn(u, f) - zn)).astype(F)
 
     def flow(p, nn, s):
         return _n((G[None, :] - p).astype(F))
@@ -217,9 +276,9 @@ def female_braid(shape, J, field, n_guides=1400, n_children=30000, M=40, braid_l
     S = _push(S, field, 0.001)
     kids = S[n_guides:]
     kids = hr.clump_and_frizz(kids, roots[n_guides:], 1800, clump=0.25, frizz=0.0006, length_var=0.04)
-    main = dict(name="scalp", strands=np.concatenate([S[gi], kids]), r_root=0.00008, r_tip=0.00004)
+    main = dict(name="scalp", strands=np.concatenate([S[gi], kids]), r_root=0.00009, r_tip=0.00005)
     # face-framing tendrils (simulated: they actually hang under gravity)
-    tm = (np.abs(u) > 0.2) & (np.abs(u) < 0.32) & (f > 0.12) & (zn < 0.36)
+    tm = (np.abs(u) > 0.24) & (np.abs(u) < 0.34) & (f > 0.05) & (hairline_zn(u, f) - zn < 0.03)
     tr, tn = roots[tm][:220], nrm[tm][:220]
     tl = np.full(len(tr), 0.16 * k, F)
 

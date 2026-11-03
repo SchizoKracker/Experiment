@@ -204,6 +204,16 @@ def _head(s, p, J):
     top = J["head_top"]
     yc = J["head"][1]
     z, w, fr, bk, lm, zmax, P_, face_front = head_profile(p, J)
+    # skull top: blend the measured tables into the least-squares crown so the loft itself carries the
+    # vault (a separate vault primitive unioned on top left a crease -> horizontal shading bands)
+    import headfit
+    z0c, cc, ac, bc, ysh, ec = headfit.fit_crown(z, w, fr, bk)
+    rc = np.clip(1 - np.abs((z - z0c) / cc) ** ec, 0, 1) ** (1 / ec)
+    u_ = np.clip((0.40 - z) / 0.14, 0, 1)
+    wt = u_ * u_ * (3 - 2 * u_)
+    w = w * (1 - wt) + ac * rc * wt
+    fr = fr * (1 - wt) + (bc * rc + ysh) * wt
+    bk = bk * (1 - wt) + (bc * rc - ysh) * wt
     t = z / zmax
     keys_w = list(zip(t, w * hh))
     keys_f = list(zip(t, fr * hh))
@@ -211,7 +221,8 @@ def _head(s, p, J):
     nfr = [(0, 2.0), (lm["brow"] / zmax, 2.1), (lm["eye"] / zmax, 1.95), (lm["mouth"] / zmax, 1.6), (0.92 / zmax, 1.75), (1, 2.0)]
     a = v3(0, yc, top[2])
     b = v3(0, yc, top[2] - zmax * hh)
-    head_l = loft(a, b, keys_w, keys_w, keys_f, keys_b, n_front=nfr, n_back=2.1)
+    nbk = [(0, 2.0), (0.28 / zmax, 2.0), (0.45 / zmax, 2.1), (1, 2.1)]
+    head_l = loft(a, b, keys_w, keys_w, keys_f, keys_b, n_front=nfr, n_back=nbk)
     # mandible lower border (measured in the side view): chin bottom -> jaw angle.  Everything of the head
     # shape below this border is removed, giving the jaw a real underside plane and a jawline edge;
     # the neck then rises from beneath it.
@@ -239,8 +250,9 @@ def _head(s, p, J):
         Fv = (h ** e + np.abs(d[:, 2] / C_) ** e) ** (1.0 / e)
         out = (Fv - 1.0) * min(A_, B_, C_)
         # only the top of the skull: fade out below the widest point
-        return sdf.smax(out, (top[2] - 0.3 * hh) - q[:, 2], 0.08 * hh)
-    s.union((vault, cen - np.array([A_, B_, C_], np.float32), cen + np.array([A_, B_, C_], np.float32)), k=0.06 * hh, tag="skin", name="vault")
+        return sdf.smax(out, (top[2] - 0.20 * hh) - q[:, 2], 0.04 * hh)
+    # only closes the pole of the loft; the loft already follows the same surface, so a tight blend
+    s.union((vault, cen - np.array([A_, B_, C_], np.float32), cen + np.array([A_, B_, C_], np.float32)), k=0.008 * hh, tag="skin", name="vault")
 
     head_profile.crown = (z0c, cc, ac, bc, ysh, ec)
 
@@ -267,14 +279,12 @@ def _ears(s, p, J, P_, lm, z, w):
     zt, zb = lm["ear_top"], lm["ear_bottom"]
     zc = (zt + zb) * 0.5 - 0.035
     hgt = (zb - zt) * 0.5 * es
+    import ear
+    ear.build(s, p, J, hh, P_, scale=es)
     for sx in (-1, 1):
         lat = np.interp(zc, z, w) - 0.03
         c = P_(sx * lat, -0.12, zc)
         rot = sdf.euler(0, 0, sx * 18) @ sdf.euler(-10, 0, 0)
-        # helix rim + concha bowl + lobe
-        s.union(ellipsoid(c + v3(sx * 0.03 * hh, 0, 0), [0.03 * hh, 0.078 * hh * es, hgt * hh], rot), k=0.02 * hh, tag="skin", name="ear")
-        s.sub(ellipsoid(c + v3(sx * 0.055 * hh, -0.01 * hh, 0.01 * hh), [0.022 * hh, 0.05 * hh * es, hgt * 0.68 * hh], rot), k=0.01 * hh, name="ear_bowl")
-        s.union(ellipsoid(c + v3(sx * 0.035 * hh, -0.005 * hh, -hgt * 0.78 * hh), [0.02 * hh, 0.035 * hh, 0.035 * hh]), k=0.015 * hh, tag="skin", name="lobe")
         if kind in ("pointed", "long"):
             ln = 0.2 if kind == "long" else 0.1
             a = c + v3(sx * 0.03 * hh, 0.01 * hh, hgt * 0.6 * hh)
@@ -309,6 +319,24 @@ def _smooth1d(v, win=9):
     return np.convolve(vp, k, mode="valid")
 
 
+def _whittaker(v, tol=0.003, order=3, check=None):
+    """Penalised (Whittaker) smoother: min |v - x|^2 + lam |D^order x|^2, with the largest lam whose max
+    deviation from the measured data stays under tol (head units).  Removes the pixel-quantisation ripple
+    in the traced tables that shows up as horizontal shading bands, without flattening real features."""
+    v = np.asarray(v, np.float64)
+    n = len(v)
+    Dm = np.diff(np.eye(n), order, axis=0)
+    DtD = Dm.T @ Dm
+    best = v
+    for lam in 10.0 ** np.arange(-1, 7, 0.25):
+        x = np.linalg.solve(np.eye(n) + lam * DtD, v)
+        dev = np.abs(x - v) if check is None else np.abs(x - v)[check]
+        if np.max(dev) > tol:
+            break
+        best = x
+    return best
+
+
 def head_profile(p, J):
     """Measured head profile (smoothed), with nose and lips removed from the traced side profile
     (both are rebuilt as anatomical forms in face.py)."""
@@ -337,7 +365,8 @@ def head_profile(p, J):
     fr[m2] = g0 + (g1 - g0) * s2 + 0.006 * np.sin(np.pi * s2)
     fr = _smooth1d(fr)
     jaw = p["jaw"] * (1 - 0.08 * p["fem"])
-    wmod = np.where(z > 0.72, 1 + (jaw - 1) * np.clip((z - 0.72) / 0.2, 0, 1), 1.0)
+    _r = np.clip((z - 0.72) / 0.2, 0, 1)
+    wmod = 1 + (jaw - 1) * _r * _r * (3 - 2 * _r)              # smooth ramp (a linear one leaves a shading band)
     w = w * wmod * p.get("face_width", 1.0)
     jz, cz = 0.80, 1.0
     wj = np.interp(jz, z, w)
@@ -346,6 +375,19 @@ def head_profile(p, J):
     w[sel] = wj + (0.062 * p["chin"] - wj) * (u ** 1.25)
     keep = z <= 1.02
     z, w, fr, bk, fr_full = z[keep], w[keep], fr[keep], bk[keep], fr_full[keep]
+    mid = (z > 0.07) & (z < 0.96)          # crown pole is replaced by the fitted vault; chin end by the jaw cut
+    w, fr, bk = _whittaker(w, check=mid), _whittaker(fr, check=mid), _whittaker(bk, check=mid)
+    # mid-face width: a ~1 mm bump in the traced width at cheekbone height becomes a ring-shaped band around
+    # the whole loft (the cheekbone itself is a local form in face.py) -> one cubic Hermite span over 0.48..0.80
+    za, zb_ = 0.48, 0.80
+    ia, ib = np.searchsorted(z, za), np.searchsorted(z, zb_)
+    dz_ = z[1] - z[0]
+    y0, y1 = w[ia], w[ib]
+    m0 = (w[ia + 1] - w[ia - 1]) / (2 * dz_) * (z[ib] - z[ia])
+    m1 = (w[ib + 1] - w[ib - 1]) / (2 * dz_) * (z[ib] - z[ia])
+    tt = (z[ia:ib + 1] - z[ia]) / (z[ib] - z[ia])
+    w[ia:ib + 1] = ((2 * tt ** 3 - 3 * tt ** 2 + 1) * y0 + (tt ** 3 - 2 * tt ** 2 + tt) * m0
+                    + (-2 * tt ** 3 + 3 * tt ** 2) * y1 + (tt ** 3 - tt ** 2) * m1)
     zmax = z[-1]
     head_profile.fr_full = (z, fr_full)
 

@@ -111,4 +111,5 @@ def main():
     print("saved", out, round(time.time() - t, 1))
 
 
-main()
+if __name__ == "__main__":
+    main()
