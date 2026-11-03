@@ -278,24 +278,24 @@ def features(s, p, J, P_, face_front, lm, hh):
     # ============================================================ SIDE PLANES
     # the face turns from its front plane to the side plane along the line temple -> outer orbital rim ->
     # cheekbone -> cheek; a soft ridge on that line, the temple and the cheek below the zygoma slightly hollow
-    SIDE = [(0.285, 0.40, 0.0025), (0.262, 0.50, 0.0036), (0.245, 0.60, 0.0055), (0.238, 0.68, 0.0036), (0.24, 0.78, 0.0012)]
+    SIDE = [(0.285, 0.40, 0.0032), (0.262, 0.50, 0.0048), (0.245, 0.60, 0.0072), (0.238, 0.68, 0.0048), (0.24, 0.78, 0.0016)]
     for sx in (-1, 1):
         dirn = _n(v3(sx * 0.75, -1, 0))
         pts = [Pn.surf(P_(sx * la, face_front(zn, la) - 0.012, zn), dirn) for la, zn, _ in SIDE]
-        D.append(ridge(pts, [a * hh for _, _, a in SIDE], 0.04 * hh))
-        D.append(sdf.brush(Pn.surf(P_(sx * 0.30, face_front(0.47, 0.30) - 0.012, 0.47), _n(v3(sx, -0.6, 0))), [0.05 * hh, 0.05 * hh, 0.055 * hh], -0.003 * hh))
-        D.append(sdf.brush(Pn.surf(P_(sx * 0.20, face_front(0.75, 0.20) - 0.012, 0.75), _n(v3(sx * 0.6, -1, 0))), [0.045 * hh, 0.04 * hh, 0.05 * hh], -0.0025 * hh))
+        D.append(ridge(pts, [a * hh for _, _, a in SIDE], 0.033 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.30, face_front(0.47, 0.30) - 0.012, 0.47), _n(v3(sx, -0.6, 0))), [0.045 * hh, 0.045 * hh, 0.05 * hh], -0.0045 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.20, face_front(0.75, 0.20) - 0.012, 0.75), _n(v3(sx * 0.6, -1, 0))), [0.04 * hh, 0.035 * hh, 0.045 * hh], -0.0038 * hh))
 
     # ============================================================ SOFT TISSUE
     # malar fat pad ("apple" of the cheek): a broad, low volume just inside and below the cheekbone so the
     # bone still reads underneath but the cheek is padded instead of shrink-wrapped
     for sx in (-1, 1):
         mp = Pn.surf(P_(sx * 0.125, face_front(0.645, 0.125) - 0.012, 0.645), _n(v3(sx * 0.4, -1, 0)))
-        D.append(sdf.brush(mp, [0.05 * hh, 0.04 * hh, 0.045 * hh], 0.006 * hh))
+        D.append(sdf.brush(mp, [0.05 * hh, 0.04 * hh, 0.045 * hh], 0.0048 * hh))
 
     # ============================================================ BROAD FORMS
     for sx in (-1, 1):
         cb = P_(sx * LMK["cheekbone_lat"], LMK["cheekbone_fwd"], LMK["cheekbone_zn"])
         cb = Pn.surf(cb, _n(v3(sx * 0.7, -1, 0)))
-        D.append(sdf.brush(cb, [0.09 * hh, 0.06 * hh, 0.07 * hh], 0.008 * hh * (1 - 0.3 * fem)))
+        D.append(sdf.brush(cb, [0.09 * hh, 0.06 * hh, 0.07 * hh], 0.0108 * hh * (1 - 0.3 * fem)))
 
