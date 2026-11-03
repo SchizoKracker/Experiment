@@ -49,6 +49,24 @@ def setup_render(res=(640, 800), samples=24):
     sc = bpy.context.scene
     sc.render.engine = "CYCLES"
     sc.cycles.device = "CPU"
+    # use the GPU when one is available (OptiX for RTX cards, then CUDA / HIP / Metal / oneAPI)
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+        for backend in ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"):
+            try:
+                prefs.compute_device_type = backend
+                prefs.get_devices()
+            except Exception:
+                continue
+            gpus = [d for d in prefs.devices if d.type != "CPU"]
+            if gpus:
+                for d in prefs.devices:
+                    d.use = d.type != "CPU"
+                sc.cycles.device = "GPU"
+                print("cycles: rendering on", backend, [d.name for d in gpus])
+                break
+    except Exception:
+        pass
     sc.cycles.samples = samples
     sc.cycles.use_denoising = True
     sc.render.resolution_x, sc.render.resolution_y = res

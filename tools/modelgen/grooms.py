@@ -233,22 +233,42 @@ def lashes(J, p, eye_centers=None, length=0.0095, n=150, M=8, shape=None):
     for sx in face.LID_EDGES:
         up, lo = face.LID_EDGES[sx]
         c = face.LID_ARCS[sx][2]
-        for arcpts, nn, L0, lower in ((up, n, length, False), (lo, n // 3, length * 0.42, True)):
+        for arcpts, nn, L0, lower in ((up, n, length, False), (lo, n // 3, length * 0.37, True)):
             x0, x1 = float(arcpts[0][0]), float(arcpts[-1][0])
             tt = np.sort(rng.uniform(0.04, 0.96, nn))
             xs = x0 + (x1 - x0) * tt
             edge = visible_lid_edge(shape, eye, c, xs, upper=not lower)
             vert = -1.0 if lower else 1.0
-            for t, x, e in zip(tt, xs, edge):
+            # outward normal of the opening outline (x-z plane) at each lash: away from the eye, so corner
+            # lashes fan out sideways instead of collapsing in
+            ok = [i for i, e in enumerate(edge) if e is not None]
+            nrm2 = {}
+            for j, i in enumerate(ok):
+                a_ = edge[ok[max(j - 1, 0)]]; b_ = edge[ok[min(j + 1, len(ok) - 1)]]
+                tg = b_ - a_; tg[1] = 0
+                nv = np.array([-tg[2], 0, tg[0]], F)
+                if np.dot(nv[[0, 2]], (edge[i] - c)[[0, 2]]) < 0:
+                    nv = -nv
+                nrm2[i] = _n(nv)
+            for ii, (t, x, e) in enumerate(zip(tt, xs, edge)):
                 if e is None:
                     continue
+                # radial direction from the eye centre in the x-z plane: robust at the corners
+                rad = (e - c).astype(F); rad[1] = 0
+                n2 = _n(rad * np.array([0.6, 0, 1.0], F))
                 row = int(rng.random() < 0.4)
                 base = e + np.array([0, 0.0002, vert * (0.0002 + row * 0.00035)], F)   # just inside the lid rim
                 lat_side = t if (x1 * sx > x0 * sx) else 1 - t
                 prof = np.sin(np.clip(t, 0.02, 0.98) * np.pi) ** 0.5
                 L = L0 * k * (0.4 + 0.6 * prof) * (0.75 + 0.45 * lat_side) * rng.uniform(0.7, 1.08) * (1 - 0.2 * row)
-                d = _n(np.array([sx * 0.4 * (lat_side - 0.4), -1.0, -0.1 * vert], F) + rng.normal(0, 0.07, 3).astype(F))
-                curl = np.array([0, 0.05, (0.36 + 0.14 * rng.random()) * vert], F)
+                fwd = np.array([0, -1.0, 0], F)
+                if lower:
+                    # lower lashes: out and slightly down, a gentle curl (no hugging the cheek)
+                    d = _n(fwd + n2 * 0.22 + rng.normal(0, 0.05, 3).astype(F))
+                    curl = n2 * (0.05 + 0.04 * rng.random())
+                else:
+                    d = _n(fwd - n2 * 0.08 + rng.normal(0, 0.07, 3).astype(F))
+                    curl = n2 * (0.36 + 0.14 * rng.random()) + fwd * 0.05
                 pts = [base]
                 for j in range(1, M):
                     d = _n(d + curl * (0.6 + 0.8 * j / M))
@@ -267,7 +287,7 @@ def lashes(J, p, eye_centers=None, length=0.0095, n=150, M=8, shape=None):
             break
         gr = mesher.gradient(shape, P[bad])
         gr /= np.linalg.norm(gr, axis=1, keepdims=True) + 1e-9
-        P[bad] += gr * (0.00025 - dd[bad])[:, None]
+        P[bad] += (gr * 0.6 + np.array([0, -0.8, 0], F)) * (0.00025 - dd[bad])[:, None]
         S[:, 1:] = P.reshape(S[:, 1:].shape)
     return dict(name="lashes", strands=S, r_root=0.000095, r_tip=0.000015)
 
