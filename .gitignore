@@ -1,0 +1,4 @@
+.godot/
+engine/
+*.tmp
+/export/
