@@ -30,12 +30,12 @@ for i, (pre, kw) in enumerate(VARIANTS):
         ob = bu.mesh_object(f"{nm}{i}", vv + np.array([x, 0, 0], np.float32), ff)
         ob.data.materials.append(mat)
     print(i, pre, round(time.time() - t, 1))
-    x += 0.62
-bu.setup_render((1800, 700), 14)
+    x += 1.0
+bu.setup_render((2000, 760), 14)
 bpy.context.scene.world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.03, 0.03, 0.035, 1)
-cx = x / 2 - 0.31
+cx = x / 2 - 0.5
 bu.add_light("AREA", (cx - 2.0, -3.5, 3.2), 260, (1, 0.97, 0.94), 3.0, (cx, 0, 0.9))
 bu.add_light("AREA", (cx + 3.0, 1.5, 2.2), 90, (0.8, 0.85, 1.0), 3.0, (cx, 0, 0.9))
-bu.camera((cx + 0.6, -6.5, 1.2), (cx, 0, 0.88), ortho=4.1)
+bu.camera((cx + 0.6, -9.0, 1.1), (cx, 0, 0.92), ortho=6.4)
 bu.render(out)
 print("saved", out)
