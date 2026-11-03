@@ -25,6 +25,7 @@ ARCH_ZN = [0.490, 0.474, 0.455, 0.437, 0.442, 0.468]
 ARCH_AMP = [0.000, 0.004, 0.009, 0.011, 0.009, 0.004]
 
 
+LID_EDGES = {}
 LID_ARCS = {}                          # sx -> (upper margin pts, lower margin pts, eye centre), filled by features()
 # eyebrow hair arch measured on the front view of 4.webp (lat, zn)
 BROW_HAIR_LAT = [0.060, 0.080, 0.110, 0.157, 0.200, 0.240]
@@ -150,6 +151,9 @@ def features(s, p, J, P_, face_front, lm, hh):
         mr = 0.0055 * hh                                   # lid margin radius (~1.3 mm)
         up_m, lo_m = arc(mr * 0.7, mr * 0.6, er + 0.0035 * hh)
         LID_ARCS[sx] = (np.array(up_m), np.array(lo_m), c.copy())
+        # the opening edge itself (just inside the lid), on the eyeball surface: lash roots start here
+        up_e, lo_e = arc(0.0012 * hh, 0.0012 * hh, er)
+        LID_EDGES[sx] = (np.array(up_e), np.array(lo_e))
         s.union(tube(up_m, mr), k=0.004 * hh, tag="lid", name="upper_lid_margin")
         s.union(tube(lo_m, mr * 0.85), k=0.004 * hh, tag="lid", name="lower_lid_margin")
         # crease (groove) and the fold of skin above it, following the opening; lower-lid groove below

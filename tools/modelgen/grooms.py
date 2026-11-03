@@ -159,7 +159,9 @@ def brows(shape, J, field, density=1.0, M=6):
         half = 0.016 * (1 - 0.65 * smooth(0.08, 0.24, au))
         return (au > 0.058) & (au < 0.242) & (np.abs(zn - centre) < half) & (f > 0.15)
     n = int(2800 * density)
-    roots, nrm = hr.surface_samples(shape, J, lo, hi, n, mask, h=0.0016)
+    blo_ = hf.world(np.array([-0.3]), np.array([0.15]), np.array([0.53]))[0]
+    bhi_ = hf.world(np.array([0.3]), np.array([0.5]), np.array([0.38]))[0]
+    roots, nrm = hr.surface_samples(shape, J, np.minimum(blo_, bhi_), np.maximum(blo_, bhi_), n, mask, h=0.0012)
     k = hf.hh / 0.23
     length = (0.0065 + 0.0035 * RNG_uniform(len(roots))) * k
     lift = np.full(len(roots), 0.0006, F)
@@ -175,52 +177,99 @@ def brows(shape, J, field, density=1.0, M=6):
         up = np.tile(np.array([0, 0, 1.0], F), (len(p), 1))
         d = along * (1 - medial)[:, None] + up * (0.25 + 0.75 * medial)[:, None]
         return _n(d.astype(F))
+    # depth: hairs layer over each other (varied lift / rise); ~12% strays stand off and cross the grain
+    rng = np.random.default_rng(21)
+    stray = rng.random(len(roots)) < 0.12
+    lift = np.where(stray, 0.0016, 0.0003 + 0.0009 * rng.random(len(roots))).astype(F)
     S = hr.grow_along_surface(roots, nrm, flow, length, M, field, lift, rise=0.35)
-    S = hr.clump_and_frizz(S, roots, 220, clump=0.3, frizz=0.0002, length_var=0.25, seed=5)
+    S = hr.clump_and_frizz(S, roots, 260, clump=0.22, frizz=0.00025, length_var=0.3, seed=5)
+    if stray.any():
+        jit = rng.normal(0, 1, (int(stray.sum()), 1, 3)).astype(F) * 0.0012 * k
+        ramp = np.linspace(0, 1, M, dtype=F)[None, :, None]
+        S[stray] = S[stray] + jit * ramp + nrm[stray][:, None, :] * (0.0012 * k * ramp)
     return dict(name="brows", strands=S, r_root=0.000085, r_tip=0.00003)
 
 
-def lashes(J, p, eye_centers=None, length=0.0095, n=200, M=7, shape=None):
-    """Upper and lower lashes rooted on the lid margins built in face.features (face.LID_ARCS)."""
-    import face
+def visible_lid_edge(shape, eye, c, xs, upper, zmax=0.016, dz=0.00015, depth=0.03, dy=0.0002):
+    """For each x: scan from the eye centre's height up (upper) / down (lower) and find where the view
+    from the front stops hitting the eyeball and hits lid skin.  Returns the skin point at that edge
+    (the front of the lid margin) for each x, or None."""
+    out = []
+    zs = np.arange(0.0, zmax, dz) * (1 if upper else -1)
+    ys = np.arange(c[1] - depth, c[1] + 0.002, dy)
+    for x in xs:
+        Z, Y = np.meshgrid(zs, ys, indexing="ij")
+        P = np.stack([np.full(Z.size, x), Y.ravel(), (c[2] + Z).ravel()], 1).astype(F)
+        ds = shape.eval(P).reshape(Z.shape)
+        de = eye.eval(P).reshape(Z.shape)
+        hit_s = np.where((ds < 0).any(1), np.argmax(ds < 0, 1), 10 ** 6)
+        hit_e = np.where((de < 0).any(1), np.argmax(de < 0, 1), 10 ** 6)
+        skin_first = hit_s < hit_e
+        seen_eye = ~skin_first & (hit_e < 10 ** 6)
+        if not seen_eye.any():
+            out.append(None)
+            continue
+        i0 = int(np.argmax(seen_eye))                       # first row where the eye is seen
+        rows = np.where(skin_first[i0:])[0]
+        if len(rows) == 0:
+            out.append(None)
+            continue
+        i = i0 + int(rows[0])                               # first row (moving away from centre) that is lid
+        out.append(np.array([x, ys[hit_s[i]], c[2] + zs[i]], F))
+    return out
+
+
+def lashes(J, p, eye_centers=None, length=0.0095, n=150, M=8, shape=None):
+    """Upper and lower lashes growing out of the lid margin exactly at the visible edge of the eye
+    opening (found by ray casting the sculpt + eyeball from the front): two staggered rows, leaving the
+    lid forward (upper: slightly down) then curling away from the eye, longest at the outer third,
+    clumped in small groups; any lash point that would clip the lid is pushed back out of it."""
+    import face, mesher
     hf = HeadFrame(J)
     k = hf.hh / 0.23
-    out = []
+    eye = anatomy.eye_shape(p, J)
+    out, roots_all = [], []
     rng = np.random.default_rng(11)
-    for sx, (up, lo, c) in face.LID_ARCS.items():
-        for arcpts, nn, L0, curl, lower in ((up, n, length, 0.42, False), (lo, n // 2, length * 0.45, -0.3, True)):
-            tt = np.linspace(0, len(arcpts) - 1.001, nn) + rng.uniform(-0.3, 0.3, nn)
-            tt = np.clip(tt, 0, len(arcpts) - 1.001)
-            for t in tt:
-                i = int(t); a = t - i
-                base = arcpts[i] * (1 - a) + arcpts[i + 1] * a
-                outw = _n(base - c)                                       # off the eyeball
-                tn = t / (len(arcpts) - 1)
-                prof = np.sin(np.clip(tn, 0.05, 1) * np.pi) ** 0.6
-                # longer toward the outer corner (sx side is lateral)
-                lat_side = tn if (arcpts[-1][0] * sx > arcpts[0][0] * sx) else 1 - tn
-                L = L0 * k * (0.45 + 0.55 * prof) * (0.85 + 0.35 * lat_side) * rng.uniform(0.85, 1.1)
-                # mostly forward out of the lid edge, then curling up (upper) / down (lower)
-                d = _n(np.array([0, -1.0, 0], F) + outw * 0.25 + np.array([sx * 0.3 * lat_side, 0, (-0.35 if lower else 0.12)], F))
-                if shape is not None:
-                    # march out from the margin centre (outward + forward) to the skin of the lid edge
-                    md = _n(outw * 0.6 + np.array([0, -1.0, 0], F))
-                    for _ in range(40):
-                        if shape.eval(base[None].astype(F))[0] >= 0:
-                            break
-                        base = base + md * 0.0002
-                if shape is not None and shape.eval(base[None].astype(F))[0] < -0.0004:
-                    continue                                              # could not reach the lid skin
+    for sx in face.LID_EDGES:
+        up, lo = face.LID_EDGES[sx]
+        c = face.LID_ARCS[sx][2]
+        for arcpts, nn, L0, lower in ((up, n, length, False), (lo, n // 3, length * 0.42, True)):
+            x0, x1 = float(arcpts[0][0]), float(arcpts[-1][0])
+            tt = np.sort(rng.uniform(0.04, 0.96, nn))
+            xs = x0 + (x1 - x0) * tt
+            edge = visible_lid_edge(shape, eye, c, xs, upper=not lower)
+            vert = -1.0 if lower else 1.0
+            for t, x, e in zip(tt, xs, edge):
+                if e is None:
+                    continue
+                row = int(rng.random() < 0.4)
+                base = e + np.array([0, 0.0002, vert * (0.0002 + row * 0.00035)], F)   # just inside the lid rim
+                lat_side = t if (x1 * sx > x0 * sx) else 1 - t
+                prof = np.sin(np.clip(t, 0.02, 0.98) * np.pi) ** 0.5
+                L = L0 * k * (0.4 + 0.6 * prof) * (0.75 + 0.45 * lat_side) * rng.uniform(0.7, 1.08) * (1 - 0.2 * row)
+                d = _n(np.array([sx * 0.4 * (lat_side - 0.4), -1.0, -0.1 * vert], F) + rng.normal(0, 0.07, 3).astype(F))
+                curl = np.array([0, 0.05, (0.36 + 0.14 * rng.random()) * vert], F)
                 pts = [base]
                 for j in range(1, M):
-                    d = _n(d + np.array([0, 0, curl], F))
+                    d = _n(d + curl * (0.6 + 0.8 * j / M))
                     pts.append(pts[-1] + d * L / (M - 1))
                 out.append(pts)
+                roots_all.append(base)
     S = np.array(out, F)
-    if shape is not None:
-        d = shape.eval(S.reshape(-1, 3)).reshape(S.shape[:2])
-        S = S[d[:, 1:].min(1) > -0.0004]                                 # no lash may pass through the lid/brow
-    return dict(name="lashes", strands=S, r_root=0.00007, r_tip=0.00002)
+    R = np.array(roots_all, F)
+    S = hr.clump_and_frizz(S, R, max(len(S) // 3, 1), clump=0.4, frizz=0.00004, length_var=0.05, seed=12)
+    # nothing passes through the lid: push clipping points (not the root) back out along the gradient
+    for _ in range(3):
+        P = S[:, 1:].reshape(-1, 3)
+        dd = shape.eval(P)
+        bad = dd < 0.00025
+        if not bad.any():
+            break
+        gr = mesher.gradient(shape, P[bad])
+        gr /= np.linalg.norm(gr, axis=1, keepdims=True) + 1e-9
+        P[bad] += gr * (0.00025 - dd[bad])[:, None]
+        S[:, 1:] = P.reshape(S[:, 1:].shape)
+    return dict(name="lashes", strands=S, r_root=0.000095, r_tip=0.000015)
 
 
 def female_braid(shape, J, field, n_guides=1600, n_children=95000, M=40, braid_len=0.42):

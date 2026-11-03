@@ -103,14 +103,23 @@ cols = np.clip(cols, 0, 1) ** 2.2
 
 # ------------------------------------------------------------------ grooms
 if use_cache:
-    gs = [dict(name=str(n), strands=C["S_" + str(n)], r_root=float(C["rr_" + str(n)]), r_tip=float(C["rt_" + str(n)])) for n in C["names"]]
+    gs = [dict(name=str(n), strands=C["S_" + str(n)], r_root=float(C["rr_" + str(n)]), r_tip=float(C["rt_" + str(n)])) for n in C["names"]
+          if str(n) not in ("brows", "lashes")]
+    # brows + lashes are regrown every run (cheap) on the full sculpt, including the brow ridge displacement
+    blo = np.array([-0.08, hf.yc - 0.16, hf.top - 0.62 * hh], F)
+    bhi = np.array([0.08, hf.yc - 0.02, hf.top - 0.36 * hh], F)
+    bfield = hr.Field(s, blo, bhi, h=0.0012)
+    gs.append(grooms.brows(s, J, bfield, density=0.9))
+    gs.append(grooms.lashes(J, p, shape=s))
 else:
     base = Shape(prims=s.prims)
     glo = np.array([-0.26, hf.yc - 0.22, hf.top - 0.9], F)
     ghi = np.array([0.26, hf.yc + 0.32, hf.top + 0.04], F)
     field = hr.Field(base, glo, ghi, h=0.0035)
     gs = list(grooms.female_braid(base, J, field)) if p["fem"] > 0.5 else [grooms.male_swept_back(base, J, field)]
-    gs.append(grooms.brows(base, J, field, density=0.9))
+    blo = np.array([-0.08, hf.yc - 0.16, hf.top - 0.62 * hh], F)
+    bhi = np.array([0.08, hf.yc - 0.02, hf.top - 0.36 * hh], F)
+    gs.append(grooms.brows(s, J, hr.Field(s, blo, bhi, h=0.0012), density=0.9))
     gs.append(grooms.lashes(J, p, shape=s))
     extra = {}
     for g in gs:
@@ -130,6 +139,10 @@ def face_clear(S, keep_u=0.0):
 for g in gs:
     if g["name"] in ("scalp", "tendrils"):
         g["strands"] = face_clear(g["strands"])
+    if g["name"] == "tendrils":
+        T = g["strands"]
+        roots_t = T[:, 0]
+        g["strands"] = hr.clump_and_frizz(T, roots_t, 8, clump=0.85, frizz=0.0003, length_var=0.1, seed=4)
 print("groomed", round(time.time() - t0, 1), {g["name"]: g["strands"].shape for g in gs})
 
 # ------------------------------------------------------------------ skin shader
