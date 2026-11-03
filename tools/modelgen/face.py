@@ -194,7 +194,7 @@ def features(s, p, J, P_, face_front, lm, hh):
     front_ext = (plane + proj - axis_front) * hh
     s.union(sdf.loft(a_pt, b_pt, list(zip(t, half_w * hh)), list(zip(t, half_w * hh)), list(zip(t, np.maximum(front_ext, 0.02 * hh))),
                      [(0, 0.02 * hh), (1, 0.02 * hh)], outer_dir=(1, 0, 0), front_dir=(0, -1, 0), n_front=2.4, cap_round=0.9),
-            k=0.025 * hh, tag="skin", name="nose")
+            k=0.03 * hh, tag="skin", name="nose")
     tip_i = int(np.argmax(proj))
     tip_f = float(plane[tip_i] + proj[tip_i])
     # tip lobule: the paired domal cartilages give the tip a soft ball with a faint central division
@@ -208,8 +208,8 @@ def features(s, p, J, P_, face_front, lm, hh):
     for sx in (-1, 1):
         # alar crease: groove separating each wing from the cheek, following the measured ala position
         ac = P_(sx * LMK["alae_lat"], LMK["alae_fwd"], LMK["alae_zn"])
-        D.append(sdf.stroke(ac + v3(-sx * 0.012 * hh, 0, 0.03 * hh), ac + v3(sx * 0.004 * hh, 0.004 * hh, 0.004 * hh), 0.006 * hh, -0.006 * hh))
-        D.append(sdf.stroke(ac + v3(sx * 0.004 * hh, 0.004 * hh, 0.004 * hh), ac + v3(-sx * 0.004 * hh, 0.0, -0.024 * hh), 0.006 * hh, -0.006 * hh))
+        D.append(sdf.stroke(ac + v3(-sx * 0.012 * hh, 0, 0.03 * hh), ac + v3(sx * 0.004 * hh, 0.004 * hh, 0.004 * hh), 0.008 * hh, -0.0045 * hh))
+        D.append(sdf.stroke(ac + v3(sx * 0.004 * hh, 0.004 * hh, 0.004 * hh), ac + v3(-sx * 0.004 * hh, 0.0, -0.024 * hh), 0.008 * hh, -0.0045 * hh))
         # nostril openings on the underside
         s.sub(ellipsoid(P_(sx * 0.024 * nw, tip_f - 0.075, LMK["subnasale_zn"] + 0.002), [0.011 * hh, 0.021 * hh, 0.006 * hh], sdf.euler(0, 0, sx * 22)),
               k=0.004 * hh, name="nostril")
@@ -278,13 +278,20 @@ def features(s, p, J, P_, face_front, lm, hh):
     # ============================================================ SIDE PLANES
     # the face turns from its front plane to the side plane along the line temple -> outer orbital rim ->
     # cheekbone -> cheek; a soft ridge on that line, the temple and the cheek below the zygoma slightly hollow
-    SIDE = [(0.285, 0.40, 0.004), (0.262, 0.50, 0.006), (0.245, 0.60, 0.009), (0.238, 0.68, 0.006), (0.24, 0.78, 0.002)]
+    SIDE = [(0.285, 0.40, 0.0025), (0.262, 0.50, 0.0036), (0.245, 0.60, 0.0055), (0.238, 0.68, 0.0036), (0.24, 0.78, 0.0012)]
     for sx in (-1, 1):
         dirn = _n(v3(sx * 0.75, -1, 0))
         pts = [Pn.surf(P_(sx * la, face_front(zn, la) - 0.012, zn), dirn) for la, zn, _ in SIDE]
-        D.append(ridge(pts, [a * hh for _, _, a in SIDE], 0.03 * hh))
-        D.append(sdf.brush(Pn.surf(P_(sx * 0.30, face_front(0.47, 0.30) - 0.012, 0.47), _n(v3(sx, -0.6, 0))), [0.04 * hh, 0.04 * hh, 0.045 * hh], -0.006 * hh))
-        D.append(sdf.brush(Pn.surf(P_(sx * 0.20, face_front(0.75, 0.20) - 0.012, 0.75), _n(v3(sx * 0.6, -1, 0))), [0.035 * hh, 0.03 * hh, 0.04 * hh], -0.005 * hh))
+        D.append(ridge(pts, [a * hh for _, _, a in SIDE], 0.04 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.30, face_front(0.47, 0.30) - 0.012, 0.47), _n(v3(sx, -0.6, 0))), [0.05 * hh, 0.05 * hh, 0.055 * hh], -0.003 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.20, face_front(0.75, 0.20) - 0.012, 0.75), _n(v3(sx * 0.6, -1, 0))), [0.045 * hh, 0.04 * hh, 0.05 * hh], -0.0025 * hh))
+
+    # ============================================================ SOFT TISSUE
+    # malar fat pad ("apple" of the cheek): a broad, low volume just inside and below the cheekbone so the
+    # bone still reads underneath but the cheek is padded instead of shrink-wrapped
+    for sx in (-1, 1):
+        mp = Pn.surf(P_(sx * 0.125, face_front(0.645, 0.125) - 0.012, 0.645), _n(v3(sx * 0.4, -1, 0)))
+        D.append(sdf.brush(mp, [0.05 * hh, 0.04 * hh, 0.045 * hh], 0.006 * hh))
 
     # ============================================================ BROAD FORMS
     for sx in (-1, 1):

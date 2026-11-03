@@ -127,3 +127,14 @@ def vc_material(name, rough=0.5, sss=0.0, mult=None):
     b = nt.nodes.get("Principled BSDF")
     nt.links.new(a.outputs["Color"], b.inputs["Base Color"])
     return m
+
+
+def set_true_normals(ob, normals):
+    """Shade with the exact surface normals (from the SDF gradient) instead of normals averaged from the
+    mesh triangles: removes the faint grid-aligned shading ripple of the surface-nets mesh."""
+    import numpy as np
+    n = np.asarray(normals, dtype=np.float64)
+    n = n / (np.linalg.norm(n, axis=1, keepdims=True) + 1e-12)
+    for poly in ob.data.polygons:
+        poly.use_smooth = True
+    ob.data.normals_split_custom_set_from_vertices([tuple(x) for x in n])

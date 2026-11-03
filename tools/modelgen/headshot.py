@@ -304,6 +304,7 @@ def eye_material():
 bu.reset()
 ob = bu.mesh_object("head", v, f)
 bu.set_vertex_colors(ob, cols)
+bu.set_true_normals(ob, mesher.gradient(s, v.astype(F)))
 ob.data.materials.append(skin_material())
 for poly in ob.data.polygons:
     poly.use_smooth = True

@@ -230,30 +230,36 @@ def _head(s, p, J):
     import headfit
     JB = headfit.JAW_BORDER
 
-    def head_cut(q, f0=head_l[0]):
-        d = f0(q)
-        fwd = (yc - q[:, 1]) / hh
-        zn = (top[2] - q[:, 2]) / hh
-        tt = np.clip((JB["chin_fwd"] - fwd) / (JB["chin_fwd"] - JB["angle_fwd"]), 0, 1)
-        zb = JB["chin_zn"] + (JB["angle_zn"] - JB["chin_zn"]) * tt ** JB["curve"]
-        cut = (zn - zb) * hh
-        return sdf.smax(d, cut, JB["soft"] * hh)
-    s.union((head_cut, head_l[1], head_l[2]), k=0.015 * hh, tag="skin", name="head")
-    # cranium vault: superellipsoid least-squares fitted to the measured front + side silhouettes
-    import headfit
+    # cranium dome: superellipsoid least-squares fitted to the measured front + side silhouettes
     z0c, cc, ac, bc, ysh, ec = headfit.fit_crown(z, w, fr, bk)
     cen = v3(0, yc - ysh * hh, top[2] - z0c * hh)
     A_, B_, C_ = ac * hh, bc * hh, cc * hh
 
-    def vault(q, cen=cen, A_=A_, B_=B_, C_=C_, e=ec):
+    def dome(q):
         d = q - cen
         h = np.sqrt((d[:, 0] / A_) ** 2 + (d[:, 1] / B_) ** 2)
-        Fv = (h ** e + np.abs(d[:, 2] / C_) ** e) ** (1.0 / e)
-        out = (Fv - 1.0) * min(A_, B_, C_)
-        # only the top of the skull: fade out below the widest point
-        return sdf.smax(out, (top[2] - 0.20 * hh) - q[:, 2], 0.04 * hh)
-    # only closes the pole of the loft; the loft already follows the same surface, so a tight blend
-    s.union((vault, cen - np.array([A_, B_, C_], np.float32), cen + np.array([A_, B_, C_], np.float32)), k=0.008 * hh, tag="skin", name="vault")
+        Fv = (h ** ec + np.abs(d[:, 2] / C_) ** ec) ** (1.0 / ec)
+        return (Fv - 1.0) * min(A_, B_, C_)
+
+    def head_cut(q, f0=head_l[0]):
+        zn = (top[2] - q[:, 2]) / hh
+        # crown: crossfade the fitted dome (owns the pole) into the measured loft (owns everything below).
+        # Both describe the same surface there, so a weighted blend has no edge and no union inflation.
+        tz = np.clip((zn - 0.10) / 0.14, 0, 1)
+        tz = tz * tz * (3 - 2 * tz)
+        d = f0(q)
+        top_m = tz < 1
+        if np.any(top_m):
+            d = d.copy()
+            d[top_m] = dome(q[top_m]) * (1 - tz[top_m]) + d[top_m] * tz[top_m]
+        fwd = (yc - q[:, 1]) / hh
+        tt = np.clip((JB["chin_fwd"] - fwd) / (JB["chin_fwd"] - JB["angle_fwd"]), 0, 1)
+        zb = JB["chin_zn"] + (JB["angle_zn"] - JB["chin_zn"]) * tt ** JB["curve"]
+        cut = (zn - zb) * hh
+        return sdf.smax(d, cut, JB["soft"] * hh)
+    lo_b = np.minimum(head_l[1], cen - np.array([A_, B_, C_], np.float32))
+    hi_b = np.maximum(head_l[2], cen + np.array([A_, B_, C_], np.float32))
+    s.union((head_cut, lo_b, hi_b), k=0.015 * hh, tag="skin", name="head")
 
     head_profile.crown = (z0c, cc, ac, bc, ysh, ec)
 
@@ -401,6 +407,9 @@ def head_profile(p, J):
     tt = (z[ia:ib + 1] - z[ia]) / (z[ib] - z[ia])
     w[ia:ib + 1] = ((2 * tt ** 3 - 3 * tt ** 2 + 1) * y0 + (tt ** 3 - 2 * tt ** 2 + tt) * m0
                     + (-2 * tt ** 3 + 3 * tt ** 2) * y1 + (tt ** 3 - tt ** 2) * m1)
+    # final pass: curvature-continuous through the span ends and the jaw hand-off (curvature jumps there
+    # shade as faint ring bands), held within 0.35 mm of the curve
+    w = _whittaker(w, tol=0.0015, check=mid)
     zmax = z[-1]
     head_profile.fr_full = (z, fr_full)
 

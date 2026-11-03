@@ -30,6 +30,7 @@ lm_ = anatomy.REF_HEAD["landmarks"]
 lipband = (((u_ / 0.1) ** 2 + ((z_ - (lm_["mouth"] + 0.004)) / 0.038) ** 2) < 1) & (f_ > 0.2)
 cols[lipband] = skin * np.array([1.0, 0.74, 0.72])
 ob = bu.mesh_object("head", v, f)
+bu.set_true_normals(ob, mesher.gradient(s, v.astype(F)))
 bu.set_vertex_colors(ob, np.clip(cols, 0, 1))
 ob.data.materials.append(bu.vc_material("skin", rough=0.5, sss=0.18))
 eo = bu.mesh_object("eyes", ev, ef)
