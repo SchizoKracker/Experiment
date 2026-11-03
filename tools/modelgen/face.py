@@ -197,13 +197,21 @@ def features(s, p, J, P_, face_front, lm, hh):
             k=0.025 * hh, tag="skin", name="nose")
     tip_i = int(np.argmax(proj))
     tip_f = float(plane[tip_i] + proj[tip_i])
+    # tip lobule: the paired domal cartilages give the tip a soft ball with a faint central division
+    tz = LMK["nose_tip_zn"] + 0.004
+    for sx in (-1, 1):
+        s.union(ellipsoid(P_(sx * 0.014 * nw, tip_f - 0.026, tz), [0.027 * hh, 0.026 * hh, 0.026 * hh]),
+                k=0.012 * hh, tag="skin", name="nose_tip")
+        # alar wings: rounded masses beside the tip, framed by the alar crease
+        s.union(ellipsoid(P_(sx * (LMK["alae_lat"] - 0.017) * nw, LMK["alae_fwd"] - 0.02, LMK["alae_zn"] + 0.002),
+                          [0.021 * hh, 0.03 * hh, 0.02 * hh], sdf.euler(0, 0, sx * 15)), k=0.014 * hh, tag="skin", name="ala")
     for sx in (-1, 1):
         # alar crease: groove separating each wing from the cheek, following the measured ala position
         ac = P_(sx * LMK["alae_lat"], LMK["alae_fwd"], LMK["alae_zn"])
         D.append(sdf.stroke(ac + v3(-sx * 0.012 * hh, 0, 0.03 * hh), ac + v3(sx * 0.004 * hh, 0.004 * hh, 0.004 * hh), 0.006 * hh, -0.006 * hh))
         D.append(sdf.stroke(ac + v3(sx * 0.004 * hh, 0.004 * hh, 0.004 * hh), ac + v3(-sx * 0.004 * hh, 0.0, -0.024 * hh), 0.006 * hh, -0.006 * hh))
         # nostril openings on the underside
-        s.sub(ellipsoid(P_(sx * 0.028 * nw, tip_f - 0.08, LMK["subnasale_zn"] + 0.004), [0.012 * hh, 0.022 * hh, 0.006 * hh], sdf.euler(0, 0, sx * 22)),
+        s.sub(ellipsoid(P_(sx * 0.024 * nw, tip_f - 0.075, LMK["subnasale_zn"] + 0.002), [0.011 * hh, 0.021 * hh, 0.006 * hh], sdf.euler(0, 0, sx * 22)),
               k=0.004 * hh, name="nostril")
     # nasion dip between brow and bridge
     D.append(sdf.brush(P_(0, face_front(lm["nasion"]) + 0.006, lm["nasion"]), [0.035 * hh, 0.025 * hh, 0.03 * hh], -0.012 * hh))
@@ -254,6 +262,15 @@ def features(s, p, J, P_, face_front, lm, hh):
         D.append(sdf.stroke(Pn.surf(P_(sx * 0.018, 0, LMK["subnasale_zn"] + 0.01), v3(0, -1, 0)),
                             Pn.surf(P_(sx * 0.026, 0, uz - 0.002), v3(0, -1, 0)), 0.01 * hh, 0.009 * hh))
 
+    for sx in (-1, 1):
+        # modiolus: the small muscular knot just lateral to each mouth corner the lips tuck into
+        mpt = Pn.surf(P_(sx * (mcl + 0.02), face_front(sz, mcl + 0.02) - 0.012, sz - 0.003), _n(v3(sx * 0.5, -1, 0)))
+        D.append(sdf.brush(mpt, [0.018 * hh, 0.016 * hh, 0.02 * hh], 0.004 * hh))
+        # nasolabial transition: a very soft groove from the alar base toward the mouth corner
+        nl = [Pn.surf(P_(sx * la, face_front(zn, la) - 0.012, zn), _n(v3(sx * 0.5, -1, 0))) for la, zn in
+              ((LMK["alae_lat"] + 0.012, LMK["alae_zn"] + 0.008), (LMK["alae_lat"] + 0.03, 0.77), (mcl + 0.03, sz + 0.012))]
+        D.append(ridge(nl, [-0.0028 * hh, -0.0022 * hh, -0.0008 * hh], 0.012 * hh))
+
     # philtrum groove between the columns, ending in the cupid's-bow dip
     D.append(sdf.stroke(Pn.surf(P_(0, 0, LMK["subnasale_zn"] + 0.008), v3(0, -1, 0)), Pn.surf(P_(0, 0, uz + 0.002), v3(0, -1, 0)),
                         0.011 * hh, -0.008 * hh))
@@ -264,10 +281,10 @@ def features(s, p, J, P_, face_front, lm, hh):
     SIDE = [(0.285, 0.40, 0.004), (0.262, 0.50, 0.006), (0.245, 0.60, 0.009), (0.238, 0.68, 0.006), (0.24, 0.78, 0.002)]
     for sx in (-1, 1):
         dirn = _n(v3(sx * 0.75, -1, 0))
-        pts = [Pn.surf(P_(sx * la, 0, zn), dirn) for la, zn, _ in SIDE]
+        pts = [Pn.surf(P_(sx * la, face_front(zn, la) - 0.012, zn), dirn) for la, zn, _ in SIDE]
         D.append(ridge(pts, [a * hh for _, _, a in SIDE], 0.03 * hh))
-        D.append(sdf.brush(Pn.surf(P_(sx * 0.30, 0, 0.47), _n(v3(sx, -0.6, 0))), [0.04 * hh, 0.04 * hh, 0.045 * hh], -0.006 * hh))
-        D.append(sdf.brush(Pn.surf(P_(sx * 0.20, 0, 0.75), _n(v3(sx * 0.6, -1, 0))), [0.035 * hh, 0.03 * hh, 0.04 * hh], -0.005 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.30, face_front(0.47, 0.30) - 0.012, 0.47), _n(v3(sx, -0.6, 0))), [0.04 * hh, 0.04 * hh, 0.045 * hh], -0.006 * hh))
+        D.append(sdf.brush(Pn.surf(P_(sx * 0.20, face_front(0.75, 0.20) - 0.012, 0.75), _n(v3(sx * 0.6, -1, 0))), [0.035 * hh, 0.03 * hh, 0.04 * hh], -0.005 * hh))
 
     # ============================================================ BROAD FORMS
     for sx in (-1, 1):

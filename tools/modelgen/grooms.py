@@ -146,48 +146,62 @@ def male_beard(shape, J, field, n_guides=600, n_children=16000, M=8):
 
 
 def brows(shape, J, field, density=1.0, M=6):
-    """Eyebrows rooted on the measured brow-hair arch (face.BROW_HAIR_*): full medially, tapering tail;
-    medial hairs point up, the body sweeps out along the arch."""
+    """Eyebrows rooted on the measured brow-hair arch (face.BROW_HAIR_*): full medially, tapering tail,
+    soft feathered edges (density falls off toward the top/bottom borders and both ends); medial hairs
+    point up, the body sweeps out along the arch with the upper and lower rows converging on the middle
+    line (the natural herringbone), ~12% strays standing off for depth."""
     import face
     hf = HeadFrame(J)
-    lo, hi = _clip_head(hf, J)
+
+    def centre_half(au):
+        return (np.interp(au, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN),
+                0.016 * (1 - 0.65 * smooth(0.08, 0.24, au)))
 
     def mask(p):
         u, f, zn = hf.local(p)
         au = np.abs(u)
-        centre = np.interp(au, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN)
-        half = 0.016 * (1 - 0.65 * smooth(0.08, 0.24, au))
-        return (au > 0.058) & (au < 0.242) & (np.abs(zn - centre) < half) & (f > 0.15)
+        c, half = centre_half(au)
+        return (au > 0.052) & (au < 0.248) & (np.abs(zn - c) < half * 1.25) & (f > 0.15)
     n = int(2800 * density)
     blo_ = hf.world(np.array([-0.3]), np.array([0.15]), np.array([0.53]))[0]
     bhi_ = hf.world(np.array([0.3]), np.array([0.5]), np.array([0.38]))[0]
-    roots, nrm = hr.surface_samples(shape, J, np.minimum(blo_, bhi_), np.maximum(blo_, bhi_), n, mask, h=0.0012)
+    roots, nrm = hr.surface_samples(shape, J, np.minimum(blo_, bhi_), np.maximum(blo_, bhi_), int(n * 1.6), mask, h=0.0012)
+    u, f, zn = hf.local(roots)
+    au = np.abs(u)
+    c, half = centre_half(au)
+    rel = (zn - c) / half
+    # feathered density: full in the body of the brow, thinning over the outer ~35% of each border
+    dens = smooth(1.25, 0.6, np.abs(rel)) * smooth(0.052, 0.072, au) * smooth(0.248, 0.215, au)
+    rng = np.random.default_rng(21)
+    keep = rng.random(len(roots)) < dens
+    roots, nrm, rel = roots[keep][:n], nrm[keep][:n], rel[keep][:n]
     k = hf.hh / 0.23
-    length = (0.0065 + 0.0035 * RNG_uniform(len(roots))) * k
-    lift = np.full(len(roots), 0.0006, F)
+    length = (0.0065 + 0.0035 * rng.random(len(roots))) * k
+    stray = rng.random(len(roots)) < 0.12
+    lift = np.where(stray, 0.0016, 0.0003 + 0.0009 * rng.random(len(roots))).astype(F)
+    rel_of = dict(zip(map(tuple, np.round(roots, 6)), rel))
 
     def flow(p, nn, s):
         uu, ff, z = hf.local(p)
-        au = np.abs(uu)
-        medial = smooth(0.10, 0.065, au)
-        # along the arch: slope of the measured arch
-        dz = np.interp(au + 0.01, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN) - np.interp(au, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN)
+        a_ = np.abs(uu)
+        cc, hh_ = centre_half(a_)
+        r_ = np.clip((z - cc) / hh_, -1.3, 1.3)
+        medial = smooth(0.10, 0.065, a_)
+        dz = np.interp(a_ + 0.01, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN) - np.interp(a_, face.BROW_HAIR_LAT, face.BROW_HAIR_ZN)
         along = np.stack([np.sign(uu) * 0.01, np.zeros_like(uu), -dz], 1)
         along = along / (np.linalg.norm(along, axis=1, keepdims=True) + 1e-9)
         up = np.tile(np.array([0, 0, 1.0], F), (len(p), 1))
-        d = along * (1 - medial)[:, None] + up * (0.25 + 0.75 * medial)[:, None]
+        # rows converge on the middle line: top-row hairs angle down, bottom-row hairs angle up
+        conv = np.zeros_like(up); conv[:, 2] = r_ * 0.35
+        d = along * (1 - medial)[:, None] + up * (0.25 + 0.75 * medial)[:, None] + conv * (1 - medial)[:, None]
         return _n(d.astype(F))
-    # depth: hairs layer over each other (varied lift / rise); ~12% strays stand off and cross the grain
-    rng = np.random.default_rng(21)
-    stray = rng.random(len(roots)) < 0.12
-    lift = np.where(stray, 0.0016, 0.0003 + 0.0009 * rng.random(len(roots))).astype(F)
     S = hr.grow_along_surface(roots, nrm, flow, length, M, field, lift, rise=0.35)
     S = hr.clump_and_frizz(S, roots, 260, clump=0.22, frizz=0.00025, length_var=0.3, seed=5)
     if stray.any():
         jit = rng.normal(0, 1, (int(stray.sum()), 1, 3)).astype(F) * 0.0012 * k
         ramp = np.linspace(0, 1, M, dtype=F)[None, :, None]
         S[stray] = S[stray] + jit * ramp + nrm[stray][:, None, :] * (0.0012 * k * ramp)
-    return dict(name="brows", strands=S, r_root=0.000085, r_tip=0.00003)
+    return dict(name="brows", strands=S, r_root=0.00007, r_tip=0.00002)
 
 
 def visible_lid_edge(shape, eye, c, xs, upper, zmax=0.016, dz=0.00015, depth=0.03, dy=0.0002):

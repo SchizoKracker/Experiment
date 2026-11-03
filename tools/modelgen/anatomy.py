@@ -218,7 +218,8 @@ def _head(s, p, J):
     keys_w = list(zip(t, w * hh))
     keys_f = list(zip(t, fr * hh))
     keys_b = list(zip(t, bk * hh))
-    nfr = [(0, 2.0), (lm["brow"] / zmax, 2.1), (lm["eye"] / zmax, 1.95), (lm["mouth"] / zmax, 1.6), (0.92 / zmax, 1.75), (1, 2.0)]
+    nfr = [(0, 2.0), (lm["brow"] / zmax, 2.1), (lm["eye"] / zmax, 1.95), (lm["mouth"] / zmax, 1.6), (0.875 / zmax, 1.7),
+           (0.925 / zmax, 2.4), (0.965 / zmax, 3.1), (1, 3.3)]       # chin: broad horseshoe front below the lower lip
     a = v3(0, yc, top[2])
     b = v3(0, yc, top[2] - zmax * hh)
     nbk = [(0, 2.0), (0.28 / zmax, 2.0), (0.45 / zmax, 2.1), (1, 2.1)]
@@ -368,11 +369,23 @@ def head_profile(p, J):
     _r = np.clip((z - 0.72) / 0.2, 0, 1)
     wmod = 1 + (jaw - 1) * _r * _r * (3 - 2 * _r)              # smooth ramp (a linear one leaves a shading band)
     w = w * wmod * p.get("face_width", 1.0)
-    jz, cz = 0.80, 1.0
-    wj = np.interp(jz, z, w)
+    # lower face: jaw outline traced on the front view of 4.webp (zn -> half-width), a smooth Catmull-Rom
+    # through the traced points, handed off continuously from the measured table; jaw/chin params scale it
+    JZ = np.array([0.800, 0.840, 0.860, 0.882, 0.924, 0.960, 0.985, 1.000, 1.012])
+    JW = np.array([0.269, 0.244, 0.228, 0.212, 0.164, 0.118, 0.088, 0.066, 0.032])
+    jz = JZ[0]
     sel = z > jz
-    u = np.clip((z[sel] - jz) / (cz - jz), 0, 1)
-    w[sel] = wj + (0.062 * p["chin"] - wj) * (u ** 1.25)
+    sc = (jaw / (0.92 * 0.92)) * p.get("face_width", 1.0)      # human_f preset reproduces the reference
+    JW = JW.copy()
+    JW[0] = float(np.interp(jz, z, w)) / sc
+    zd = np.linspace(JZ[0], JZ[-1], 256)
+    wd = sdf.smooth_profile(list(zip((JZ - JZ[0]) / (JZ[-1] - JZ[0]), JW)), n=256)
+    wl = np.interp(z[sel], zd, wd)
+    bl = np.clip((z[sel] - jz) / 0.06, 0, 1)
+    bl = bl * bl * (3 - 2 * bl)
+    cw = w[sel] * (1 - bl) + wl * sc * bl
+    chin_t = np.clip((z[sel] - 0.93) / 0.07, 0, 1)
+    w[sel] = cw * (1 + (p["chin"] - 1) * chin_t)
     keep = z <= 1.02
     z, w, fr, bk, fr_full = z[keep], w[keep], fr[keep], bk[keep], fr_full[keep]
     mid = (z > 0.07) & (z < 0.96)          # crown pole is replaced by the fitted vault; chin end by the jaw cut

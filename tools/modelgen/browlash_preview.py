@@ -48,7 +48,7 @@ for poly in ob.data.polygons:
     poly.use_smooth = True
 eo = bu.mesh_object("eyes", ev, ef)
 eo.data.materials.append(bu.material("eye", (0.8, 0.8, 0.78), rough=0.05))
-add_strands("brows", br["strands"], br["r_root"], br["r_tip"], hair_material("brow", melanin=0.82, red=0.65, rough=0.35))
+add_strands("brows", br["strands"], br["r_root"], br["r_tip"], hair_material("brow", melanin=0.7, red=0.8, rough=0.35))
 add_strands("lashes", la["strands"], la["r_root"], la["r_tip"], hair_material("lash", melanin=0.98, red=0.2, rough=0.3))
 
 W, H = 900, 520

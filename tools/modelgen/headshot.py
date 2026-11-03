@@ -28,7 +28,21 @@ lo = np.array([-0.2, hf.yc - 0.2, hf.top - 1.75 * hh], F)
 hi = np.array([0.2, hf.yc + 0.2, hf.top + 0.02], F)
 import os
 CACHE = f"{OUT_DIR}/hs_cache_{preset}.npz"
+import hashlib, glob
+_here = os.path.dirname(os.path.abspath(__file__))
+_src = hashlib.sha1()
+for _fn in sorted(glob.glob(os.path.join(_here, "*.py")) + glob.glob(os.path.join(_here, "*.json"))):
+    if os.path.basename(_fn) not in ("headshot.py", "browlash_preview.py", "face_preview.py"):
+        _src.update(open(_fn, "rb").read())
+SRC_HASH = _src.hexdigest()
 use_cache = os.path.exists(CACHE) and "--rebuild" not in sys.argv
+if use_cache:
+    try:
+        use_cache = str(np.load(CACHE)["src_hash"]) == SRC_HASH      # sculpt/groom code changed -> rebuild
+    except Exception:
+        use_cache = False
+    if not use_cache:
+        print("cache is stale (model code changed): rebuilding")
 if use_cache:
     C = np.load(CACHE)
     v, f, ev, ef = C["v"], C["f"], C["ev"], C["ef"]
@@ -95,6 +109,11 @@ for sx, (up, lo_, c) in face.LID_ARCS.items():
     cc = mix(cc, (0.1, 0.07, 0.06), 0.9 * liner)
     cc = mix(cc, (0.35, 0.25, 0.23), 0.35 * np.exp(-(dl / 0.0022) ** 2) * outer)
     cols[m] = cc
+# nostril interiors: deep shadow colour
+for sx in (-1, 1):
+    nc = hf.world(np.array([sx * 0.024]), np.array([0.0]), np.array([LMK["subnasale_zn"] + 0.002]))[0]
+    m_ = (np.abs(u - sx * 0.024) < 0.016) & (np.abs(zn - LMK["subnasale_zn"]) < 0.012) & (fw > 0.3)
+    cols[m_] = mix(cols[m_], (0.32, 0.16, 0.14), np.full(m_.sum(), 0.75))
 # caruncle + inner lid rim: moist pink
 for sx, cp in face.CARUNCLE.items():
     dcar = np.linalg.norm(v - cp, axis=1)
@@ -131,7 +150,7 @@ else:
     extra = {}
     for g in gs:
         extra["S_" + g["name"]] = g["strands"]; extra["rr_" + g["name"]] = g["r_root"]; extra["rt_" + g["name"]] = g["r_tip"]
-    np.savez(CACHE, v=v, f=f, ev=ev, ef=ef, names=np.array([g["name"] for g in gs]), **extra)
+    np.savez(CACHE, v=v, f=f, ev=ev, ef=ef, names=np.array([g["name"] for g in gs]), src_hash=SRC_HASH, **extra)
 
 
 def face_clear(S, keep_u=0.0):
@@ -299,7 +318,7 @@ for k, cen in enumerate(anatomy.eye_centers(p, J)):
     eo.data.materials.append(em)
     for poly in eo.data.polygons:
         poly.use_smooth = True
-mats = dict(brows=hair_material("brow", melanin=0.82, red=0.65, rough=0.35),
+mats = dict(brows=hair_material("brow", melanin=0.7, red=0.8, rough=0.35),
             lashes=hair_material("lash", melanin=0.98, red=0.2, rough=0.3))
 hm = hair_material("hair", melanin=0.55, red=0.9, rough=0.28)
 for g in gs:

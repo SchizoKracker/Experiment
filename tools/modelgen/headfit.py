@@ -26,7 +26,7 @@ LANDMARKS = dict(
 
 
 # mandible lower border, side view: chin bottom (x=720,y=575) -> jaw angle (x=855,y=525)
-JAW_BORDER = dict(chin_fwd=0.30, chin_zn=1.045, angle_fwd=0.058, angle_zn=0.933, curve=2.0, soft=0.022)
+JAW_BORDER = dict(chin_fwd=0.30, chin_zn=1.008, angle_fwd=0.058, angle_zn=0.933, curve=2.0, soft=0.022)
 
 
 def fit_crown(z, w, fr, bk, z_max=0.42):
