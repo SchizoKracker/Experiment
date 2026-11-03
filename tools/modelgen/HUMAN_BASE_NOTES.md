@@ -104,3 +104,16 @@ wider pelvis (hips widest ≈ crotch level), smaller waist, thighs with more inn
   above ≈0.52.
 - Specks in the comparison renders at arm/torso and hand/hip are pose crevices (arms at 68–70°),
   not present in the 42° base pose; the export step remeshes anyway.
+
+## Rigging (rig.py / posecheck.py)
+
+- Armature is generated from the same joints as the sculpt (52 bones: spine chain, clavicles, arms,
+  3 phalanges × 5 fingers per hand, legs, feet, toes). Bone-heat weights + smoothing; 0 unweighted verts.
+- **Blender voxel remesh silently collapses below ~5 mm voxels** (voxel-count cap → ~2.5k polys).
+  Do not remesh; clean the surface-nets mesh with bmesh (weld, dissolve degenerate, fill holes,
+  recalc normals) and decimate uniformly.
+- **Weighted collapse-decimation is unusable**: any vertex-group bias makes the unprotected region
+  collapse into slivers. Use uniform decimation with a higher budget (≈40–80k tris).
+- Verified poses: elbow/knee 90–100°, arms raised, stride, fists — clean. Known LBS limits:
+  armpit self-intersection beyond ~110° arm raise, glute crumple at ~100° hip flexion (deep squat).
+  Fix later with corrective shape keys / helper bones (planned), not by re-sculpting.
