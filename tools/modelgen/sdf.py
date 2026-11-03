@@ -321,6 +321,9 @@ class Shape:
         if has_sides:
             d = np.minimum(fold(d.copy(), "L"), fold(d.copy(), "R"))
         for disp in self.displace:
+            dlo = getattr(disp, "lo", None)
+            if dlo is not None and (np.any(dlo > hi) or np.any(disp.hi < lo)):
+                continue
             d = d + disp(p, d)
         if with_tags:
             return d, tags
@@ -459,6 +462,8 @@ def brush(center, radii, amp, rot=None):
         e = np.exp(-((q / r) ** 2).sum(axis=1))
         e[far] = 0.0
         return (-amp * e).astype(F)
+    f.lo = c - lim
+    f.hi = c + lim
     return f
 
 
@@ -482,4 +487,6 @@ def stroke(a, b, radius, amp, depth_r=None):
         dist = np.linalg.norm(q - (a + np.outer(t, ab)), axis=1)
         out[m] = -amp * np.exp(-(dist / radius) ** 2)
         return out
+    f.lo = lim_lo
+    f.hi = lim_hi
     return f
