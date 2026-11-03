@@ -18,6 +18,36 @@ from sdf import F, ellipsoid, sphere
 
 CHIN_UNDER = [0.25, 1.0, 0.016]
 EYE_R_HU = 0.052                       # eyeball radius in head units (~12.2 mm)
+# brow arch (front view of 4.webp: brow inner end lat .080 zn .471, peak .157/.426, tail .238/.435; the bone
+# ridge sits just under the hair): lat, zn, forward bulge (hu).  Medial end fades into the nose bridge.
+ARCH_LAT = [0.030, 0.060, 0.100, 0.155, 0.200, 0.238]
+ARCH_ZN = [0.490, 0.474, 0.455, 0.437, 0.442, 0.468]
+ARCH_AMP = [0.000, 0.004, 0.009, 0.011, 0.009, 0.004]
+
+
+def ridge(pts, amps, r):
+    """Smooth ridge along a polyline: Gaussian in the distance to the line, amplitude interpolated
+    along it (no double-counting at the joints, unlike chained strokes)."""
+    P = np.asarray(pts, F)
+    A = np.asarray(amps, F)
+    lo, hi = P.min(0) - 3.2 * r, P.max(0) + 3.2 * r
+
+    def f(p, d):
+        out = np.zeros(len(p), F)
+        m = np.all((p > lo) & (p < hi), axis=1)
+        if not np.any(m):
+            return out
+        q = p[m]
+        v = np.zeros(len(q), F)
+        for i in range(len(P) - 1):
+            ab = P[i + 1] - P[i]
+            t = np.clip(((q - P[i]) @ ab) / float(ab @ ab), 0, 1)
+            dist = np.linalg.norm(q - (P[i] + np.outer(t, ab)), axis=1)
+            v = np.maximum(v, (A[i] + (A[i + 1] - A[i]) * t) * np.exp(-(dist / r) ** 2))   # continuous at joints
+        out[m] = -v
+        return out
+    f.lo, f.hi = lo, hi
+    return f
 
 
 def eye_center(p, J, sx, face_front, ez, k, P_):
@@ -55,7 +85,9 @@ def features(s, p, J, P_, face_front, lm, hh):
         # shallow socket hollow around the lids, clipped by the brow line
         E = ellipsoid(c + v3(0, -(er + 0.03 * hh), 0.006 * hh), [0.08 * hh, 0.032 * hh, 0.045 * hh])
 
-        def socket(q, E=E[0], bz=brow_z):
+        def socket(q, E=E[0]):
+            # the socket's roof is the underside of the brow arch (measured arch + ridge half-thickness)
+            bz = top - (np.interp(np.abs(q[:, 0]) / hh, ARCH_LAT, ARCH_ZN) + 0.032) * hh
             return sdf.smax(E(q), q[:, 2] - bz, 0.012 * hh)
         s.sub((socket, E[1], E[2]), k=0.016 * hh, name="socket")
         # lids hug the eyeball; the almond opening exposes it
@@ -76,6 +108,14 @@ def features(s, p, J, P_, face_front, lm, hh):
         pts = [oc + v3(sx * t * hw * 0.95, -er * (0.9 - 0.25 * t * t), ha + 0.02 * hh - 0.012 * hh * t * t) for t in (-1, -0.4, 0.3, 1)]
         for a_, b_ in zip(pts[:-1], pts[1:]):
             D.append(sdf.stroke(a_, b_, 0.009 * hh, -0.0045 * hh * (1 - 0.3 * fem)))
+
+    # ============================================================ BROW RIDGE
+    # supraorbital arch measured on the front view (follows the brow, ~2 mm under the hair line), running
+    # down medially into the side wall of the nose bridge; rounded forward bulge, strongest over the iris,
+    # nearly zero at the midline so the measured glabella/nasion profile is kept.
+    for sx in (-1, 1):
+        pts = [Pn.surf(P_(sx * la, 0, zn), v3(0, -1, 0)) for la, zn in zip(ARCH_LAT, ARCH_ZN)]
+        D.append(ridge(pts, [a * hh * (1 - 0.25 * fem) for a in ARCH_AMP], 0.028 * hh))
 
     # ============================================================ NOSE (profile projection + measured widths)
     zf, frf = anatomy.head_profile.fr_full
@@ -115,23 +155,32 @@ def features(s, p, J, P_, face_front, lm, hh):
     amp_mid = np.maximum(np.interp(zgrid, zf, frf) - base, 0.0)
     lp = p["lips"] * (1 + 0.1 * fem)
 
+    # measured midline lip profile (skin upper lip slope -> vermilion -> stomion -> lower lip -> labiomental)
+    lz0 = float(LMK["subnasale_zn"]) + 0.02
+    zl = zgrid[(zgrid > lz0) & (zgrid < 0.905)]
+    al = np.maximum(np.interp(zl, zgrid, amp_mid), 0.0)
+    w_ = np.clip(np.minimum((zl - lz0) / 0.012, (0.905 - zl) / 0.012), 0, 1)
+    al = al * w_ * w_ * (3 - 2 * w_)
+    seg = (zl > 0.82) & (zl < 0.86)
+    szp = float(zl[seg][np.argmin(al[seg])]) if np.any(seg) else sz
+
     def lips(q, d):
         u, f, zn = local(q)
         out = np.zeros(len(q), F)
-        m = (f > 0.15) & (zn > uz - 0.03) & (zn < lz + 0.04) & (np.abs(u) < mcl * 1.15)
+        m = (f > 0.15) & (zn > lz0 - 0.01) & (zn < 0.92) & (np.abs(u) < mcl * 1.35)
         if not np.any(m):
             return out
         uu, zz = np.abs(u[m]), zn[m]
-        A = np.interp(zz, zgrid, amp_mid) * lp
-        # lateral falloff toward the corners; the lower lip ends a little inside the upper
-        lat_ext = np.where(zz < sz, mcl, mcl * 0.9)
-        L = np.clip(1 - (uu / lat_ext) ** 2.4, 0, 1) ** 0.5
-        # vermilion edges: crisp upper border (with a slight cupid's bow dip at the midline), soft lower edge
-        bow = uz + 0.004 * np.exp(-(uu / 0.012) ** 2) - 0.004 * np.exp(-((uu - 0.03) / 0.02) ** 2)
-        edge = np.clip((zz - bow) / 0.006, 0, 1) * np.clip((lz - zz) / 0.012, 0, 1)
-        stom = 0.016 * np.exp(-((zz - sz) / 0.0055) ** 2) * (0.4 + 0.6 * np.clip(1 - uu / (mcl * 1.1), 0, 1))
-        band = np.clip((zz - bow) / 0.004, 0, 1) * np.clip((lz - zz) / 0.008, 0, 1)
-        out[m] = -((A * 0.75 + 0.022 * band) * L * (0.45 + 0.55 * edge) - stom) * hh
+        t = np.clip(uu / mcl, 0, 1.35)
+        # the lips thin toward the corners: compress the profile toward the mouth line
+        hs = np.maximum(1 - t ** 2.4, 0.0) ** 0.45 * 0.8 + 0.2
+        # cupid's bow: the upper border rises over the philtral columns, dips at the midline
+        bow = np.where(zz < szp, 0.004 * np.exp(-((uu - 0.026) / 0.014) ** 2) - 0.003 * np.exp(-(uu / 0.01) ** 2), 0.0)
+        z_eff = szp + (zz + bow - szp) / hs
+        a = np.interp(z_eff, zl, al, left=0.0, right=0.0)
+        lat_t = np.clip(1 - (t / 1.08) ** 2, 0, 1) ** 0.7
+        stom = 0.011 * np.exp(-((zz - szp) / 0.0045) ** 2) * np.clip(1 - t / 1.1, 0, 1) ** 0.5
+        out[m] = -(a * lat_t * lp * 1.08 - stom) * hh
         return out
     c_m = P_(0, face_front(sz), sz)
     lips.lo = c_m - np.array([0.2, 0.2, 0.15], F) * hh
@@ -141,13 +190,16 @@ def features(s, p, J, P_, face_front, lm, hh):
         # commissures sit on the dental arch, measured depth
         D.append(sdf.brush(P_(sx * mcl, LMK["mouth_corner_fwd"], sz), [0.018 * hh, 0.018 * hh, 0.018 * hh], -0.006 * hh))
         # philtral columns
-        D.append(sdf.stroke(Pn.surf(P_(sx * 0.02, 0, LMK["subnasale_zn"] + 0.012), v3(0, -1, 0)),
-                            Pn.surf(P_(sx * 0.024, 0, uz - 0.004), v3(0, -1, 0)), 0.008 * hh, 0.0025 * hh))
+        D.append(sdf.stroke(Pn.surf(P_(sx * 0.018, 0, LMK["subnasale_zn"] + 0.01), v3(0, -1, 0)),
+                            Pn.surf(P_(sx * 0.026, 0, uz - 0.002), v3(0, -1, 0)), 0.01 * hh, 0.009 * hh))
+
+    # philtrum groove between the columns, ending in the cupid's-bow dip
+    D.append(sdf.stroke(Pn.surf(P_(0, 0, LMK["subnasale_zn"] + 0.008), v3(0, -1, 0)), Pn.surf(P_(0, 0, uz + 0.002), v3(0, -1, 0)),
+                        0.011 * hh, -0.008 * hh))
 
     # ============================================================ BROAD FORMS
     for sx in (-1, 1):
         cb = P_(sx * LMK["cheekbone_lat"], LMK["cheekbone_fwd"], LMK["cheekbone_zn"])
         cb = Pn.surf(cb, _n(v3(sx * 0.7, -1, 0)))
         D.append(sdf.brush(cb, [0.09 * hh, 0.06 * hh, 0.07 * hh], 0.008 * hh * (1 - 0.3 * fem)))
-    s.prims.append(sdf.Prim(*ellipsoid(P_(0.0, face_front(0.98) - CHIN_UNDER[0], CHIN_UNDER[1]), [0.103 * hh, CHIN_UNDER[2] / 0.234 * hh, 0.047 * hh]),
-                            op="union", k=0.05 * hh, tag="skin", name="chin_under"))
+

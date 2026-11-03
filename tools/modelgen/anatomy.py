@@ -211,7 +211,22 @@ def _head(s, p, J):
     nfr = [(0, 2.0), (lm["brow"] / zmax, 2.1), (lm["eye"] / zmax, 1.95), (lm["mouth"] / zmax, 1.6), (0.92 / zmax, 1.75), (1, 2.0)]
     a = v3(0, yc, top[2])
     b = v3(0, yc, top[2] - zmax * hh)
-    s.union(loft(a, b, keys_w, keys_w, keys_f, keys_b, n_front=nfr, n_back=2.1), k=0.015 * hh, tag="skin", name="head")
+    head_l = loft(a, b, keys_w, keys_w, keys_f, keys_b, n_front=nfr, n_back=2.1)
+    # mandible lower border (measured in the side view): chin bottom -> jaw angle.  Everything of the head
+    # shape below this border is removed, giving the jaw a real underside plane and a jawline edge;
+    # the neck then rises from beneath it.
+    import headfit
+    JB = headfit.JAW_BORDER
+
+    def head_cut(q, f0=head_l[0]):
+        d = f0(q)
+        fwd = (yc - q[:, 1]) / hh
+        zn = (top[2] - q[:, 2]) / hh
+        tt = np.clip((JB["chin_fwd"] - fwd) / (JB["chin_fwd"] - JB["angle_fwd"]), 0, 1)
+        zb = JB["chin_zn"] + (JB["angle_zn"] - JB["chin_zn"]) * tt ** JB["curve"]
+        cut = (zn - zb) * hh
+        return sdf.smax(d, cut, JB["soft"] * hh)
+    s.union((head_cut, head_l[1], head_l[2]), k=0.015 * hh, tag="skin", name="head")
     # cranium vault: superellipsoid least-squares fitted to the measured front + side silhouettes
     import headfit
     z0c, cc, ac, bc, ysh, ec = headfit.fit_crown(z, w, fr, bk)

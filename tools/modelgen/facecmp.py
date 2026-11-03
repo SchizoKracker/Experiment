@@ -21,7 +21,7 @@ def ref_profiles():
     front = m[:, :600]
     top, chin = 10, 562
     hh = chin - top
-    rows = np.arange(top, 640)
+    rows = np.arange(top, 690)
     zn = (rows - top) / hh
     fr, bk, w = [], [], []
     fcx = None
@@ -86,7 +86,7 @@ def main():
     J = hu.build_skeleton(p)
     s = body.build_body(p, J)
     zr, dr, wr = ref_profiles()
-    zs = np.arange(0.40, 1.06, 0.02)
+    zs = np.arange(0.40, 1.16, 0.02)
     dm, wm = model_profiles(p, J, s, zs)
     labels = {0.5: "brow", 0.54: "nasion", 0.56: "eye", 0.68: "nose tip", 0.74: "subnasale", 0.78: "upper lip",
               0.82: "mouth", 0.86: "lower lip", 0.9: "labiomental", 0.96: "chin", 1.02: "under chin"}
