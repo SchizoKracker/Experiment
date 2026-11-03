@@ -107,7 +107,7 @@ def build_body(p, J) -> Shape:
     hh = J["_head_h"]
     nw = p["neck"] * (1 - 0.2 * fem) * (1 + 0.2 * (mus - 0.5))
     neck_base = v3(0, 0.017 * H, 0.825 * H)      # rises forward out of the upper back (no hump behind the thoracic arc)
-    neck_top = v3(0, J["head"][1] + 0.05 * hh, J["head_top"][2] - 0.74 * hh)     # runs up inside the skull: no exposed cap under the jaw
+    neck_top = v3(0, J["head"][1] + 0.11 * hh, J["head_top"][2] - 0.6 * hh)     # runs up inside the skull: no exposed cap under the jaw
     s.union(loft(neck_base, neck_top, [(0, 0.036 * H * nw), (0.5, 0.033 * H * nw), (1, 0.033 * H * nw)],
                  [(0, 0.036 * H * nw), (0.5, 0.033 * H * nw), (1, 0.033 * H * nw)],
                  [(0, 0.028 * H * nw), (1, 0.026 * H * nw)], [(0, 0.034 * H * nw), (0.6, 0.031 * H * nw), (1, 0.033 * H * nw)]),
@@ -268,7 +268,7 @@ def _loa_segment(s, H, z0, z1, xcs, xw):
 def _nape_fillet(s, H):
     # nape fillet: the head meets the neck with a tight blend (kept, for the jaw), which leaves a sharp concave
     # corner under the occiput; a soft fill rounds it into the cervical curve (back of the neck only)
-    nape_z = 0.884
+    nape_z = 0.903
     lo_n, ys_n = -0.02, 0.2
     for _ in range(26):
         m = (lo_n + ys_n) / 2
@@ -276,4 +276,4 @@ def _nape_fillet(s, H):
             lo_n = m
         else:
             ys_n = m
-    s.displace.append(sdf.brush(v3(0, lo_n * H, nape_z * H), [0.032 * H, 0.01 * H, 0.03 * H], 0.002 * H))
+    s.displace.append(sdf.brush(v3(0, lo_n * H, nape_z * H), [0.032 * H, 0.01 * H, 0.012 * H], 0.0012 * H))
