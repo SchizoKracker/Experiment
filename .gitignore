@@ -2,3 +2,4 @@
 engine/
 *.tmp
 /export/
+__pycache__/
