@@ -4,6 +4,7 @@ import sys, time
 import numpy as np
 from PIL import Image
 import races, humanoid as hu, body, mesher, anatomy, grooms, face, character
+import gpu, pmesh
 import hair as hr
 from headfit import LANDMARKS as LMK
 from sdf import Shape, F
@@ -19,6 +20,7 @@ preset = sys.argv[2] if len(sys.argv) > 2 else "human_f"
 samples = int(sys.argv[3]) if len(sys.argv) > 3 else 96
 t0 = time.time()
 hu.ARM_DROP_DEG = 72
+gpu.enable()                                   # field evaluation on the GPU when CuPy + CUDA are available
 p = races.preset(preset)
 J = hu.build_skeleton(p)
 s = body.build_body(p, J)
@@ -32,7 +34,7 @@ import hashlib, glob
 _here = os.path.dirname(os.path.abspath(__file__))
 _src = hashlib.sha1()
 for _fn in sorted(glob.glob(os.path.join(_here, "*.py")) + glob.glob(os.path.join(_here, "*.json"))):
-    if os.path.basename(_fn) not in ("headshot.py", "browlash_preview.py", "face_preview.py", "turnaround.py"):
+    if os.path.basename(_fn) not in ("headshot.py", "browlash_preview.py", "face_preview.py", "turnaround.py", "pmesh.py", "gpu.py", "gpu_check.py"):
         _src.update(open(_fn, "rb").read())
 SRC_HASH = _src.hexdigest()
 use_cache = os.path.exists(CACHE) and "--rebuild" not in sys.argv
@@ -46,8 +48,14 @@ if use_cache:
 if use_cache:
     C = np.load(CACHE)
     v, f, ev, ef = C["v"], C["f"], C["ev"], C["ef"]
+    nrm = C["nrm"] if "nrm" in C.files else None
 else:
-    v, f = mesher.mesh_shape(s, h=0.0013, clip=(lo, hi), verbose=False)
+    # GPU: in-process; CPU: every core (worker pool in a child process, so this unguarded script is spawn-safe)
+    if gpu.ACTIVE:
+        v, f = mesher.mesh_shape(s, h=0.0013, clip=(lo, hi), verbose=False)
+        nrm = mesher.gradient(s, v.astype(F))
+    else:
+        v, f, nrm = pmesh.mesh_subprocess(("%s" % preset, hu.ARM_DROP_DEG), 0.0013, clip=(lo, hi), normals=True)
     ev, ef = mesher.mesh_shape(anatomy.eye_shape(p, J), h=0.0005, verbose=False)
 print("meshed", round(time.time() - t0, 1), len(f))
 
@@ -150,7 +158,7 @@ else:
     extra = {}
     for g in gs:
         extra["S_" + g["name"]] = g["strands"]; extra["rr_" + g["name"]] = g["r_root"]; extra["rt_" + g["name"]] = g["r_tip"]
-    np.savez(CACHE, v=v, f=f, ev=ev, ef=ef, names=np.array([g["name"] for g in gs]), src_hash=SRC_HASH, **extra)
+    np.savez(CACHE, v=v, f=f, ev=ev, ef=ef, nrm=nrm, names=np.array([g["name"] for g in gs]), src_hash=SRC_HASH, **extra)
 
 
 def face_clear(S, keep_u=0.0):
@@ -304,7 +312,8 @@ def eye_material():
 bu.reset()
 ob = bu.mesh_object("head", v, f)
 bu.set_vertex_colors(ob, cols)
-bu.set_true_normals(ob, mesher.gradient(s, v.astype(F)))
+bu.set_true_normals(ob, nrm if nrm is not None else mesher.gradient(s, v.astype(F)))
+gpu.release()                                   # hand the VRAM back to Cycles
 ob.data.materials.append(skin_material())
 for poly in ob.data.polygons:
     poly.use_smooth = True

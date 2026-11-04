@@ -14,8 +14,11 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 import numpy as np
+import numpy as _np          # host numpy: never swapped for the GPU shim (culling tests stay on the CPU)
 
 F = np.float32
+
+import gpu as _gpu  # noqa: E402  (GPU evaluation backend; inactive unless gpu.enable() succeeds)
 
 
 # --------------------------------------------------------------------------
@@ -79,7 +82,7 @@ class Prim:
         # box is padded by the largest blend radius in the shape (pad_extra), not only by its own k:
         # culling it inside another primitive's blend zone left creases at bounding-box edges
         pad = max(self.k, pad_extra) + 1e-4
-        return bool(np.all(self.lo - pad <= hi) and np.all(self.hi + pad >= lo))
+        return bool(_np.all(self.lo - pad <= hi) and _np.all(self.hi + pad >= lo))
 
 
 def _bounds(center, ext):
@@ -290,9 +293,15 @@ class Shape:
         return lo, hi
 
     def eval(self, p: np.ndarray, lo=None, hi=None, with_tags=False):
+        if _gpu.ACTIVE:
+            return _gpu.eval_shape(self, p, lo, hi, with_tags)
         p = np.asarray(p, F)
         if lo is None:
             lo, hi = p.min(axis=0), p.max(axis=0)
+        return self._eval_impl(p, lo, hi, with_tags, [pr.fn for pr in self.prims], self.displace)
+
+    def _eval_impl(self, p, lo, hi, with_tags, fns, disps):
+        """fns/disps: the primitives' and displacements' functions (device clones on the GPU path)."""
         tag_d = None
         tags = None
         if with_tags:
@@ -308,7 +317,7 @@ class Shape:
                     continue
                 if pr.op != "inter" and not pr.touches(lo, hi, kmax):
                     continue
-                v = pr.fn(p)
+                v = fns[idx](p)
                 if pr.op == "union":
                     d = smin(d, v, pr.k)
                     if with_tags and pr.tag:
@@ -325,9 +334,9 @@ class Shape:
         has_sides = any(pr.side for pr in self.prims)
         if has_sides:
             d = np.minimum(fold(d.copy(), "L"), fold(d.copy(), "R"))
-        for disp in self.displace:
+        for disp in disps:
             dlo = getattr(disp, "lo", None)
-            if dlo is not None and (np.any(dlo > hi) or np.any(disp.hi < lo)):
+            if dlo is not None and (_np.any(dlo > hi) or _np.any(disp.hi < lo)):
                 continue
             d = d + disp(p, d)
         if with_tags:

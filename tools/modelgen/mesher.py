@@ -26,17 +26,30 @@ for a in range(8):
 _EDGES = np.array(_EDGES)
 
 
-def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03,
-               project_steps: int = 3, verbose: bool = True, clip=None):
-    t0 = time.time()
+# points per Shape.eval call when densely evaluating blocks (gpu.enable() raises it: the GPU wants big batches)
+EVAL_POINTS = 400000
+
+
+def lattice_box(shape: Shape, pad: float = 0.03, clip=None):
+    """The (lo, hi) box mesh_shape samples on; None when the clip box misses the shape."""
     lo, hi = shape.bounds()
     if clip is not None:
         lo = np.maximum(lo, clip[0])
         hi = np.minimum(hi, clip[1])
         if np.any(hi <= lo):
-            return np.zeros((0, 3), F), np.zeros((0, 3), np.int64)
-    lo = lo - pad
-    hi = hi + pad
+            return None
+    return lo - pad, hi + pad
+
+
+def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03,
+               project_steps: int = 3, verbose: bool = True, clip=None, lattice=None):
+    """lattice: explicit (lo, hi) sampling box (overrides bounds/clip/pad).  Parallel slab meshing passes
+    sub-boxes of one global lattice so every slab samples exactly the same grid points."""
+    t0 = time.time()
+    box = lattice if lattice is not None else lattice_box(shape, pad, clip)
+    if box is None:
+        return np.zeros((0, 3), F), np.zeros((0, 3), np.int64)
+    lo, hi = box
     npts = np.ceil((hi - lo) / h).astype(np.int64) + 1
     nblk = np.ceil((npts - 1) / block).astype(np.int64)
     NX, NY, NZ = (nblk * block + 1)
@@ -46,8 +59,8 @@ def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03
     bi = np.stack(np.meshgrid(np.arange(nblk[0]), np.arange(nblk[1]), np.arange(nblk[2]), indexing="ij"), -1).reshape(-1, 3)
     centres = lo + (bi + 0.5) * H
     d_c = np.empty(len(bi), F)
-    for s in range(0, len(bi), 200000):
-        d_c[s:s + 200000] = shape.eval(centres[s:s + 200000])
+    for s in range(0, len(bi), EVAL_POINTS // 2):
+        d_c[s:s + EVAL_POINTS // 2] = shape.eval(centres[s:s + EVAL_POINTS // 2])
     active = bi[np.abs(d_c) < H * 3.4]
     if len(active) == 0:
         return np.zeros((0, 3), F), np.zeros((0, 3), np.int64)
@@ -55,7 +68,7 @@ def mesh_shape(shape: Shape, h: float = 0.004, block: int = 8, pad: float = 0.03
     # ---- 2. dense block evaluation ------------------------------------
     B1 = block + 1
     loc = np.stack(np.meshgrid(np.arange(B1), np.arange(B1), np.arange(B1), indexing="ij"), -1).reshape(-1, 3)
-    batch = max(1, 400000 // len(loc))
+    batch = max(1, EVAL_POINTS // len(loc))
     def _eval_blocks(blks):
         out = np.empty((len(blks), B1, B1, B1), F)
         for s in range(0, len(blks), batch):
