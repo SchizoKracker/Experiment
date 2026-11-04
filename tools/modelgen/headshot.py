@@ -32,7 +32,7 @@ import hashlib, glob
 _here = os.path.dirname(os.path.abspath(__file__))
 _src = hashlib.sha1()
 for _fn in sorted(glob.glob(os.path.join(_here, "*.py")) + glob.glob(os.path.join(_here, "*.json"))):
-    if os.path.basename(_fn) not in ("headshot.py", "browlash_preview.py", "face_preview.py"):
+    if os.path.basename(_fn) not in ("headshot.py", "browlash_preview.py", "face_preview.py", "turnaround.py"):
         _src.update(open(_fn, "rb").read())
 SRC_HASH = _src.hexdigest()
 use_cache = os.path.exists(CACHE) and "--rebuild" not in sys.argv
@@ -337,6 +337,9 @@ bu.add_light("AREA", tuple(hc + np.array([0.6, 0.9, 0.6])), 60, (1.0, 0.85, 0.7)
 bu.add_light("AREA", tuple(hc + np.array([-0.5, 0.8, 0.4])), 40, (0.9, 0.9, 1.0), 0.7, tuple(hc))        # rim 2
 cam = bu.camera(tuple(hc), tuple(hc), lens=100)
 views = [("34", (0.38, -0.82, 0.04)), ("front", (0.0, -0.9, 0.03)), ("profile", (-0.9, -0.05, 0.03))]
+if "--turnaround" in sys.argv:
+    views = [("front", (0.0, -0.9, 0.03)), ("34L", (-0.55, -0.71, 0.04)), ("34R", (0.55, -0.71, 0.04)),
+             ("profile", (-0.9, 0.0, 0.03)), ("back", (0.0, 0.9, 0.05))]
 ims = []
 for name, d in views:
     cam.location = tuple(hc + np.array(d)); bu.look_at(cam, tuple(hc + np.array([0, 0, 0.005])))

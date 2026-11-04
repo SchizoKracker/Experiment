@@ -1,14 +1,18 @@
 """One-click character render.  Drop this file into an empty folder and run it:
 
-    python render_character.py              full headshot (3 views) on your GPU
+    python render_character.py              headshot + full body: front, 3/4 L, 3/4 R, side, back
+    python render_character.py --headonly   headshot only (5 views)
+    python render_character.py --presets human_f,human_m   (body turnaround for several bases)
+    python render_character.py --no-split   mesh the body in one process (if the parallel mesher misbehaves)
     python render_character.py --preview    fast brow/lash close-up (needs one full run first, for the cache)
     python render_character.py --samples 512
 
 What it does, all inside this folder:
   1. makes sure a Python 3.13 is used (the Blender 5.2 'bpy' module is built for 3.13)
   2. creates a private virtual environment (.venv) and installs numpy, pillow, bpy
-  3. clones / updates the project from GitHub (branch claude/confident-dijkstra-ft7945)
-  4. runs the sculpt -> hair -> makeup -> Cycles render pipeline (GPU: OptiX/CUDA picked automatically)
+  3. clones / updates the project from GitHub (branch claude/pensive-volta-a6fl2i)
+  4. headshot renders on the GPU WHILE the body meshes on every CPU core, then the body renders on the GPU
+     (reuses output/hs_cache_*.npz from an earlier run in this same folder)
   5. opens the output folder
 Needs: Python 3.13 and git on PATH (Windows: winget install Python.Python.3.13 Git.Git).
 """
@@ -21,7 +25,7 @@ import venv
 HERE = os.path.dirname(os.path.abspath(__file__))
 VENV = os.path.join(HERE, ".venv")
 REPO_URL = "https://github.com/SchizoKracker/Experiment.git"
-BRANCH = "claude/confident-dijkstra-ft7945"
+BRANCH = "claude/pensive-volta-a6fl2i"
 REPO = os.path.join(HERE, "Experiment")
 OUT = os.path.join(HERE, "output")
 PKGS = ["numpy", "pillow", "bpy==5.2.3"]
@@ -90,10 +94,21 @@ def main():
         run([py, "browlash_preview.py", out_png, "human_f", "64", "--eye"], cwd=work, env=env)
     else:
         cache = os.path.join(OUT, "hs_cache_human_f.npz")
-        args = [py, "headshot.py", os.path.join(OUT, "headshot.png"), "human_f", samples]
+        hs = [py, "headshot.py", os.path.join(OUT, "headshot.png"), "human_f", samples, "--turnaround"]
         if not os.path.exists(cache):
-            args.append("--rebuild")             # first run: sculpt mesh + grow the hair (cached afterwards)
-        run(args, cwd=work, env=env)
+            hs.append("--rebuild")             # first run: sculpt mesh + grow the hair (cached afterwards)
+        procs = [subprocess.Popen(hs, cwd=work, env=env)]
+        if "--headonly" not in sys.argv:
+            ta = [py, "turnaround.py", "--samples", samples]
+            for flag in ("--presets", "--workers", "--h", "--res"):
+                if flag in sys.argv:
+                    ta += [flag, sys.argv[sys.argv.index(flag) + 1]]
+            if "--no-split" in sys.argv:
+                ta.append("--no-split")
+            procs.append(subprocess.Popen(ta, cwd=work, env=env))
+        codes = [p.wait() for p in procs]
+        if any(codes):
+            sys.exit(f"a render step failed (exit codes {codes})")
     print("\ndone ->", OUT)
     try:
         if os.name == "nt":
