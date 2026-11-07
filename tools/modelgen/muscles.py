@@ -94,8 +94,14 @@ def _torso_front(P, p, H, md, fem):
         # sternoclavicular head of the clavicle and the acromion at the top of the shoulder
         P.bump(v3(sx * 0.017 * H, 0, 0.823 * H), FWD + UP * 0.4, X, 0.007 * H, 0.006 * H, 0.0013 * H)
         P.bump(v3(sx * 0.1 * H, 0, 0.818 * H), UP + X * 0.3, X, 0.009 * H, 0.008 * H, 0.0011 * H)
-        # clavicle ridge and the infraclavicular hollow
-        P.line(v3(sx * 0.014 * H, 0, 0.82 * H), FWD + UP * 0.6, v3(sx * 0.09 * H, 0, 0.812 * H), FWD + UP * 0.8, 0.0055 * H, 0.0022 * H)
+        # clavicle: a defined ridge (gentle S: sternal end -> slight rise -> acromion), the supraclavicular hollow just
+        # above/behind it, so the chest plane, the collarbone and the trapezius slope read as separate layers
+        cl = [(0.018, 0.8235), (0.04, 0.8255), (0.062, 0.826), (0.082, 0.823), (0.097, 0.82)]
+        for (x0, z0), (x1, z1) in zip(cl[:-1], cl[1:]):
+            P.line(v3(sx * x0 * H, 0, z0 * H), FWD, v3(sx * x1 * H, 0, z1 * H), FWD, 0.0045 * H, 0.0024 * H)
+        sc = [(0.03, 0.8335), (0.052, 0.8355), (0.074, 0.832)]
+        for (x0, z0), (x1, z1) in zip(sc[:-1], sc[1:]):
+            P.line(v3(sx * x0 * H, 0, z0 * H), FWD, v3(sx * x1 * H, 0, z1 * H), FWD, 0.0075 * H, -0.0026 * H)
         P.line(v3(sx * 0.035 * H, 0, 0.797 * H), FWD, v3(sx * 0.075 * H, 0, 0.792 * H), FWD, 0.008 * H, -0.0011 * H)
         # costal arch: lower ribcage edge, ridge then soft hollow beneath (drives the V)
         P.line(v3(sx * 0.014 * H, 0, 0.688 * H), FWD, v3(sx * 0.086 * H, 0, 0.632 * H), FWD + X * 0.8, 0.007 * H, 0.0011 * H * md)
@@ -144,7 +150,7 @@ def trapezius_field(H, md, fem):
         u = np.clip(x / np.maximum(L, 1e-4), 0, 1.5)
         prof = np.clip(1 - u ** 2.2, 0, 1) ** 1.6                    # full near the spine/neck, feathered to the edge
         # back of the body only; the upper trapezius wraps over the top of the shoulder to its front border
-        y0 = np.interp(z, [0.78, 0.82, 0.86], [0.01, -0.004, -0.012])
+        y0 = np.interp(z, [0.78, 0.82, 0.86], [0.012, 0.007, 0.003])    # on the back/top only: it sits behind the clavicle
         wb = np.clip((y - y0) / 0.02 + 0.5, 0, 1)
         wb = wb * wb * (3 - 2 * wb)
         out[m] = -(T * a * prof * wb * H)
